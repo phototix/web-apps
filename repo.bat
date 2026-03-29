@@ -7,17 +7,16 @@ if errorlevel 1 (
 	exit /b 1
 )
 
-if "%~1"=="" (
-	echo Usage: repo.bat "your commit message"
-	exit /b 1
-)
-
 if not exist ".git" (
 	echo Error: run this script from the root of a git repository.
 	exit /b 1
 )
 
-set "commit_message=%*"
+if "%~1"=="" (
+	set "commit_message=Update"
+) else (
+	set "commit_message=%*"
+)
 
 echo Staging all changes...
 git add .

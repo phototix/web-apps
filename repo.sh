@@ -13,11 +13,10 @@ if [[ ! -d .git ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-	echo "Usage: ./repo.sh \"your commit message\""
-	exit 1
+	commit_message="Update"
+else
+	commit_message="$*"
 fi
-
-commit_message="$*"
 
 echo "Staging all changes..."
 git add .

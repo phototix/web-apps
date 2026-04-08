@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+// Include layout components
+require_once __DIR__ . '/layout/header.php';
+require_once __DIR__ . '/layout/sidebar.php';
+require_once __DIR__ . '/layout/dashboard.php';
+
+// Include WhatsApp pages
+require_once __DIR__ . '/pages_whatsapp.php';
+
 function app_page_home(): void
 {
     $user = null;
@@ -120,18 +128,180 @@ function app_page_welcome(): void
 
     $user = app_current_user();
 
-    app_render_head('Welcome');
+    app_render_head('Dashboard');
 
-    $theme = app_theme();
-
-    if ($theme === 'softing-v2.0') {
-        app_render_welcome_softing($user);
-    } elseif ($theme === 'Anada-v2.0') {
-        app_render_welcome_anada($user);
-    } else {
-        app_render_welcome_sasoft($user);
-    }
-
+    // Start dashboard layout
+    app_render_dashboard_start($user);
+    
+    // Render flash messages
+    app_render_flash();
+    
+    // Dashboard content
+    ?>
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-white border-bottom-0">
+                    <h4 class="mb-0">Welcome, <?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="text-muted mb-0">Here's what's happening with your account today.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                User ID
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                #<?= htmlspecialchars((string) $user['id'], ENT_QUOTES, 'UTF-8') ?>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Email
+                            </div>
+                            <div class="h6 mb-0 font-weight-bold text-gray-800">
+                                <?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-envelope fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Role
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user-tag fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Account Status
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Active
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-primary btn-block">
+                                <i class="fas fa-book me-2"></i>Access Library
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-success btn-block">
+                                <i class="fas fa-folder me-2"></i>View Cases
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-info btn-block">
+                                <i class="fas fa-comments me-2"></i>Open Chats
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="/logout" class="btn btn-outline-danger btn-block">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-sign-in-alt text-success me-3"></i>
+                            <div>
+                                <div class="small text-muted">Today, 10:30 AM</div>
+                                <div>You logged in successfully</div>
+                            </div>
+                        </div>
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-user-check text-info me-3"></i>
+                            <div>
+                                <div class="small text-muted">Yesterday, 3:45 PM</div>
+                                <div>Profile information updated</div>
+                            </div>
+                        </div>
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-bell text-warning me-3"></i>
+                            <div>
+                                <div class="small text-muted">April 5, 2026</div>
+                                <div>New notification received</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+    
+    // End dashboard layout
+    app_render_dashboard_end();
+    
     app_render_footer();
 }
 
@@ -230,11 +400,8 @@ function app_render_register_sasoft(): void
 
 function app_render_welcome_sasoft(array $user): void
 {
-    ?>
-    <header><nav class="navbar mobile-sidenav nav-border navbar-sticky navbar-default validnavs"><div class="container d-flex justify-content-between align-items-center"><div class="navbar-header"><a class="navbar-brand" href="/welcome"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/logo.png'), ENT_QUOTES, 'UTF-8') ?>" class="logo" alt="Logo"></a></div><div class="attr-right"><div class="attr-nav"><ul><li class="button"><a href="/logout">Logout</a></li></ul></div></div></div></nav></header>
-    <div class="breadcrumb-area shadow dark bg-cover text-center text-light" style="background-image: url(<?= htmlspecialchars(app_theme_asset('assets/img/banner/1.jpg'), ENT_QUOTES, 'UTF-8') ?>);"><div class="container"><h1>Welcome, <?= htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8') ?></h1></div></div>
-    <div class="features-area default-padding bottom-less"><div class="container"><?php app_render_flash(); ?><div class="row"><div class="col-lg-4"><div class="item"><h4>User ID</h4><p>#<?= htmlspecialchars((string) $user['id'], ENT_QUOTES, 'UTF-8') ?></p></div></div><div class="col-lg-4"><div class="item"><h4>Email</h4><p><?= htmlspecialchars((string) $user['email'], ENT_QUOTES, 'UTF-8') ?></p></div></div><div class="col-lg-4"><div class="item"><h4>Role</h4><p><?= htmlspecialchars((string) $user['role'], ENT_QUOTES, 'UTF-8') ?></p></div></div></div><div class="text-center" style="margin-top: 24px;"><a href="/logout" class="btn circle btn-theme effect btn-md">Logout</a></div></div></div>
-    <?php
+    // This function is no longer used directly
+    // The dashboard layout is now handled by app_page_welcome()
 }
 
 function app_render_not_found_sasoft(): void
@@ -300,10 +467,8 @@ function app_render_register_softing(): void
 
 function app_render_welcome_softing(array $user): void
 {
-    ?>
-    <header id="home"><nav class="navbar mobile-sidenav navbar-sticky navbar-default validnavs navbar-fixed dark no-background"><div class="container d-flex justify-content-between align-items-center"><div class="navbar-header"><a class="navbar-brand" href="/welcome"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/logo.png'), ENT_QUOTES, 'UTF-8') ?>" class="logo" alt="Logo"></a></div><div class="attr-right"><div class="attr-nav"><ul><li class="button"><a href="/logout">Logout</a></li></ul></div></div></div></nav></header>
-    <div class="about-area default-padding"><div class="container"><?php app_render_flash(); ?><h2>Welcome, <?= htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><strong>Email:</strong> <?= htmlspecialchars((string) $user['email'], ENT_QUOTES, 'UTF-8') ?></p><p><strong>Role:</strong> <?= htmlspecialchars((string) $user['role'], ENT_QUOTES, 'UTF-8') ?></p><a href="/logout" class="btn circle btn-theme effect btn-md">Logout</a></div></div>
-    <?php
+    // This function is no longer used directly
+    // The dashboard layout is now handled by app_page_welcome()
 }
 
 function app_render_not_found_softing(): void
@@ -369,10 +534,8 @@ function app_render_register_anada(): void
 
 function app_render_welcome_anada(array $user): void
 {
-    ?>
-    <header><nav class="navbar mobile-sidenav navbar-sticky navbar-default validnavs navbar-fixed dark no-background navbar-style-one"><div class="container d-flex justify-content-between align-items-center"><div class="navbar-header"><a class="navbar-brand" href="/welcome"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/logo.png'), ENT_QUOTES, 'UTF-8') ?>" class="logo" alt="Logo"></a></div><div class="attr-right"><div class="attr-nav"><ul><li class="button"><a href="/logout">Logout</a></li></ul></div></div></div></nav></header>
-    <div class="about-area default-padding"><div class="container"><?php app_render_flash(); ?><h2>Welcome, <?= htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8') ?></h2><p><strong>Email:</strong> <?= htmlspecialchars((string) $user['email'], ENT_QUOTES, 'UTF-8') ?></p><p><strong>Role:</strong> <?= htmlspecialchars((string) $user['role'], ENT_QUOTES, 'UTF-8') ?></p><a href="/logout" class="btn circle btn-theme effect btn-md">Logout</a></div></div>
-    <?php
+    // This function is no longer used directly
+    // The dashboard layout is now handled by app_page_welcome()
 }
 
 function app_render_not_found_anada(): void

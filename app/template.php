@@ -31,7 +31,15 @@ function app_asset(string $path): string
 
 function app_theme_asset(string $path): string
 {
-    return '/themes/' . app_theme() . '/' . ltrim($path, '/');
+    $assetUrl = '/themes/' . app_theme() . '/' . ltrim($path, '/');
+    
+    // Add cache busting version for CSS, JS, and image files
+    if (preg_match('/\.(css|js|png|jpg|jpeg|gif|svg|ico)$/i', $path)) {
+        $version = '20260407112613'; // Updated when logo changed
+        $assetUrl .= '?v=' . $version;
+    }
+    
+    return $assetUrl;
 }
 
 function app_redirect(string $path): void
@@ -118,6 +126,140 @@ function app_render_head(string $title): void
     <link rel="stylesheet" href="<?= htmlspecialchars(app_theme_asset('style.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars(app_theme_asset('assets/css/responsive.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php endif; ?>
+    
+    <!-- Dashboard Styles -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dashboard-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .dashboard-sidebar {
+            width: 250px;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 100;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            box-shadow: 2px 0 5px rgba(0,0,0,.1);
+        }
+        
+        .dashboard-content {
+            flex: 1;
+            margin-left: 250px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .dashboard-header {
+            position: sticky;
+            top: 0;
+            z-index: 99;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        
+        .dashboard-header .container-fluid {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        
+        .dashboard-header .dropdown {
+            margin-left: auto;
+        }
+        
+        .dashboard-main {
+            flex: 1;
+            background-color: #f8f9fa;
+        }
+        
+        .sidebar-sticky {
+            position: sticky;
+            top: 0;
+            height: calc(100vh - 48px);
+            padding-top: .5rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            border-bottom: 1px solid rgba(255,255,255,.1);
+            margin-bottom: .5rem;
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            color: #bdc3c7;
+            padding: .75rem 1rem;
+            text-decoration: none;
+            border-left: 3px solid transparent;
+            transition: all .2s ease;
+            margin: 2px 0;
+            width: 100%;
+        }
+        
+        .nav-link:hover {
+            color: #fff;
+            background-color: rgba(255,255,255,.05);
+            border-left-color: #3498db;
+        }
+        
+        .nav-link.active {
+            color: #fff;
+            background-color: rgba(52, 152, 219, .2);
+            border-left-color: #3498db;
+            font-weight: 500;
+        }
+        
+        .nav-link i {
+            width: 24px;
+            font-size: 16px;
+            text-align: center;
+            margin-right: 12px;
+        }
+        
+        .nav-link span {
+            flex: 1;
+        }
+        
+        .nav-item {
+            width: 100%;
+        }
+        
+        .avatar-placeholder {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-sidebar {
+                width: 70px;
+            }
+            
+            .dashboard-content {
+                margin-left: 70px;
+            }
+            
+            .sidebar-header,
+            .nav-link span {
+                display: none;
+            }
+            
+            .nav-link i {
+                margin-right: 0;
+                font-size: 18px;
+            }
+            
+            .nav-link {
+                justify-content: center;
+                padding: 1rem .5rem;
+            }
+        }
+    </style>
 </head>
 <body>
     <?php
@@ -143,9 +285,12 @@ function app_render_scripts(): void
 {
     $theme = app_theme();
 
-    if ($theme === 'Sasoft-v2.0') {
+     if ($theme === 'Sasoft-v2.0') {
         ?>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/bootstrap.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery.magnific-popup.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/owl.carousel.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
@@ -164,9 +309,12 @@ function app_render_scripts(): void
         return;
     }
 
-    if ($theme === 'softing-v2.0') {
+     if ($theme === 'softing-v2.0') {
         ?>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery-3.6.0.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/bootstrap.bundle.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery.appear.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery.easing.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
@@ -180,9 +328,12 @@ function app_render_scripts(): void
 
         return;
     }
-
     ?>
+
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery-3.6.0.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/bootstrap.bundle.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery.appear.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/jquery.easing.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>

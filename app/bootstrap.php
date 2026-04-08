@@ -46,4 +46,10 @@ require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/template.php';
 require_once __DIR__ . '/pages.php';
+require_once __DIR__ . '/logging.php';
 require_once __DIR__ . '/router.php';
+require_once __DIR__ . '/whatsapp.php';
+require_once __DIR__ . '/webhooks.php';
+
+// Log incoming request
+app_log_request();

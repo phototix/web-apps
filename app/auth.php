@@ -19,7 +19,7 @@ function app_find_user_by_email(PDO $pdo, string $email): ?array
 
 function app_find_user_by_id(PDO $pdo, int $id): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, created_at FROM users WHERE id = :id LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, tier, created_at FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => $id]);
 
     $user = $statement->fetch();
@@ -56,6 +56,9 @@ function app_current_user(): ?array
 
 function app_logout_user(): void
 {
+    $user = app_current_user();
+    $email = $user['email'] ?? 'unknown';
+    
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {
@@ -64,6 +67,8 @@ function app_logout_user(): void
     }
 
     session_destroy();
+    
+    app_log_auth($email, 'logout', true);
 }
 
 function app_require_auth(): void
@@ -86,14 +91,17 @@ function app_attempt_login(string $email, string $password): bool
     $user = app_find_user_by_email(app_db(), $email);
 
     if ($user === null) {
+        app_log_auth($email, 'login', false);
         return false;
     }
 
     if (!password_verify($password, $user['password_hash'])) {
+        app_log_auth($email, 'login', false);
         return false;
     }
 
     app_login_user($user);
+    app_log_auth($email, 'login', true);
 
     return true;
 }
@@ -141,6 +149,7 @@ function app_register_user(string $name, string $email, string $password, string
     }
 
     app_login_user($user);
+    app_log_auth($email, 'registration', true);
 
     return ['success' => true, 'message' => 'Registration complete.'];
 }

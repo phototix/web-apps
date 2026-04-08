@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+function app_render_dashboard_sidebar(): void
+{
+    $currentPath = $_SERVER['REQUEST_URI'] ?? '/welcome';
+    ?>
+    <aside class="dashboard-sidebar">
+        <div class="sidebar-sticky pt-3">
+            <div class="sidebar-menu">
+                <div class="sidebar-header px-3 py-2">
+                    <h6 class="text-uppercase text-muted mb-0">Main Menu</h6>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/welcome') !== false ? 'active' : '' ?>" href="/welcome">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-book"></i>
+                            <span>Library</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-folder"></i>
+                            <span>Cases</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/groups') !== false ? 'active' : '' ?>" href="/groups">
+                            <i class="fas fa-users"></i>
+                            <span>Groups</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/whatsapp-connect') !== false ? 'active' : '' ?>" href="/whatsapp-connect">
+                            <i class="fab fa-whatsapp"></i>
+                            <span>WhatsApp Connect</span>
+                        </a>
+                    </li>
+                </ul>
+            
+            <div class="mt-auto p-3">
+                <div class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    ERP.ezy.chat v1.0
+                </div>
+            </div>
+        </div>
+    </aside>
+    <?php
+}

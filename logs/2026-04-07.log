@@ -1,0 +1,241 @@
+[2026-04-07 02:13:17] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775527997}
+[2026-04-07 02:13:17] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:37:11] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775529431}
+[2026-04-07 02:37:11] ERROR: Database connection failed: SQLSTATE[HY000] [1045] Access denied for user 'ezychat'@'localhost' (using password: YES) {"dsn":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","username":"ezychat"}
+[2026-04-07 02:37:11] ERROR: Database connection failed: SQLSTATE[HY000] [1045] Access denied for user 'ezychat'@'localhost' (using password: YES) {"dsn":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","username":"ezychat"}
+[2026-04-07 02:37:11] INFO: Authentication logout success for unknown {"email":"unknown","action":"logout","success":true,"timestamp":1775529431}
+[2026-04-07 02:37:11] ERROR: Database connection failed: SQLSTATE[HY000] [1045] Access denied for user 'ezychat'@'localhost' (using password: YES) {"dsn":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","username":"ezychat"}
+[2026-04-07 02:37:40] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775529460}
+[2026-04-07 02:37:40] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:37:40] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529460}
+[2026-04-07 02:37:40] INFO: Authentication registration success for test_1775529460@example.com {"email":"test_1775529460@example.com","action":"registration","success":true,"timestamp":1775529460}
+[2026-04-07 02:37:40] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775529460}
+[2026-04-07 02:38:12] INFO: Request: POST /api/auth/login {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:12] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Request: GET /api/auth/check {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Request: POST /api/auth/register {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:12] INFO: Authentication registration success for test_1775529492@example.com {"email":"test_1775529492@example.com","action":"registration","success":true,"timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Request: POST /api/auth/login {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:12] INFO: Authentication login success for test_1775529492@example.com {"email":"test_1775529492@example.com","action":"login","success":true,"timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Request: GET /api/auth/profile {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Request: POST /api/auth/logout {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529492}
+[2026-04-07 02:38:12] INFO: Authentication logout success for unknown {"email":"unknown","action":"logout","success":true,"timestamp":1775529492}
+[2026-04-07 02:38:34] INFO: Request: POST /api/auth/login {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:34] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Request: GET /api/auth/check {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:34] INFO: Request: GET /api/auth/profile {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:34] INFO: Request: POST /api/auth/logout {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:38:34] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775529514}
+[2026-04-07 02:38:34] INFO: Request: GET /api/auth/check {"ip":"127.0.0.1","user_agent":"curl/8.5.0","timestamp":1775529514}
+[2026-04-07 02:42:00] INFO: Request: GET / {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529720}
+[2026-04-07 02:42:05] INFO: Request: GET /login {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529725}
+[2026-04-07 02:42:11] INFO: Request: POST /api/auth/login {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529731}
+[2026-04-07 02:42:11] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:42:11] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529731}
+[2026-04-07 02:42:19] INFO: Request: GET /api/auth/check {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529739}
+[2026-04-07 02:42:26] INFO: Request: POST /api/auth/register {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529746}
+[2026-04-07 02:42:26] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:42:26] INFO: Authentication registration success for api_test_1775529745@example.com {"email":"api_test_1775529745@example.com","action":"registration","success":true,"timestamp":1775529746}
+[2026-04-07 02:42:32] INFO: Request: GET /register {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529752}
+[2026-04-07 02:42:53] INFO: Request: GET / {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: GET /login {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: GET /register {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: GET /welcome {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: POST /api/auth/login {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:42:53] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: POST /api/auth/register {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:42:53] INFO: Authentication registration success for route_test_1775529773@example.com {"email":"route_test_1775529773@example.com","action":"registration","success":true,"timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: GET /nonexistent {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:42:53] INFO: Request: GET /api/nonexistent {"ip":"::1","user_agent":"curl/8.5.0","timestamp":1775529773}
+[2026-04-07 02:43:13] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529793}
+[2026-04-07 02:43:18] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529798}
+[2026-04-07 02:43:18] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:43:18] WARNING: Authentication login failed for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":false,"timestamp":1775529798}
+[2026-04-07 02:43:18] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529798}
+[2026-04-07 02:43:25] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529805}
+[2026-04-07 02:43:25] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:43:25] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775529805}
+[2026-04-07 02:43:26] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529806}
+[2026-04-07 02:43:26] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:43:30] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529810}
+[2026-04-07 02:43:30] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:43:39] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529819}
+[2026-04-07 02:43:39] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:43:44] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529824}
+[2026-04-07 02:43:44] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:44:03] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529843}
+[2026-04-07 02:44:03] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:44:23] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529863}
+[2026-04-07 02:44:23] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:44:33] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775529873}
+[2026-04-07 02:44:33] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 02:51:05] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775530265}
+[2026-04-07 02:51:05] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:14:03] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531643}
+[2026-04-07 03:14:03] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:14:07] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531647}
+[2026-04-07 03:14:07] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:15:11] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531711}
+[2026-04-07 03:15:11] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:15:14] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531714}
+[2026-04-07 03:15:14] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:15:14] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775531714}
+[2026-04-07 03:15:15] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531715}
+[2026-04-07 03:15:17] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531717}
+[2026-04-07 03:15:21] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775531721}
+[2026-04-07 03:22:46] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532166}
+[2026-04-07 03:22:46] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:22:46] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775532166}
+[2026-04-07 03:22:47] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532167}
+[2026-04-07 03:22:47] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:22:52] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532172}
+[2026-04-07 03:22:52] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:22:55] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532175}
+[2026-04-07 03:22:55] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:22:55] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775532175}
+[2026-04-07 03:22:55] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532175}
+[2026-04-07 03:23:09] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532189}
+[2026-04-07 03:23:10] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532190}
+[2026-04-07 03:27:16] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532436}
+[2026-04-07 03:27:20] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532440}
+[2026-04-07 03:27:23] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532443}
+[2026-04-07 03:27:25] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532445}
+[2026-04-07 03:27:25] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:27:25] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775532445}
+[2026-04-07 03:27:25] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532445}
+[2026-04-07 03:27:25] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:27:28] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775532448}
+[2026-04-07 03:27:28] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 03:36:58] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775533018}
+[2026-04-07 03:37:01] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775533021}
+[2026-04-07 03:37:04] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775533024}
+[2026-04-07 03:44:30] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775533470}
+[2026-04-07 03:44:31] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775533471}
+[2026-04-07 04:04:42] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36","timestamp":1775534682}
+[2026-04-07 04:57:32] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537852}
+[2026-04-07 04:57:32] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537852}
+[2026-04-07 04:57:35] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537855}
+[2026-04-07 04:57:35] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 04:57:35] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775537855}
+[2026-04-07 04:57:35] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537855}
+[2026-04-07 04:57:35] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 04:59:56] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537996}
+[2026-04-07 04:59:56] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 04:59:56] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775537996}
+[2026-04-07 04:59:56] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537996}
+[2026-04-07 04:59:59] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775537999}
+[2026-04-07 05:00:01] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775538001}
+[2026-04-07 05:00:02] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775538002}
+[2026-04-07 05:00:02] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:00:03] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775538003}
+[2026-04-07 05:00:03] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775538003}
+[2026-04-07 05:00:03] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:15:03] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775538903}
+[2026-04-07 05:31:29] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775539889}
+[2026-04-07 05:31:29] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:31:35] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775539895}
+[2026-04-07 05:31:35] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:31:45] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775539905}
+[2026-04-07 05:31:45] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:32:16] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775539936}
+[2026-04-07 05:32:16] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:34:23] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775540063}
+[2026-04-07 05:36:11] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540171}
+[2026-04-07 05:36:11] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:36:20] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540180}
+[2026-04-07 05:36:20] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:37:22] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775540242}
+[2026-04-07 05:37:33] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540253}
+[2026-04-07 05:37:33] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:39:07] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540347}
+[2026-04-07 05:39:07] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:39:12] INFO: Request: GET /themes/Sasoft-v2.0/assets/js/bootstrap.bundle.min.js.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540352}
+[2026-04-07 05:39:12] INFO: Request: GET /themes/Sasoft-v2.0/assets/css/bootstrap.min.css.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540352}
+[2026-04-07 05:39:24] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1775540364}
+[2026-04-07 05:39:27] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36","timestamp":1775540367}
+[2026-04-07 05:39:27] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:39:27] INFO: Request: GET /themes/Sasoft-v2.0/assets/css/bootstrap.min.css.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540367}
+[2026-04-07 05:39:28] INFO: Request: GET /themes/Sasoft-v2.0/assets/js/bootstrap.bundle.min.js.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540368}
+[2026-04-07 05:39:31] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36","timestamp":1775540371}
+[2026-04-07 05:39:32] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:39:32] INFO: Request: GET /themes/Sasoft-v2.0/assets/css/bootstrap.min.css.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540372}
+[2026-04-07 05:39:32] INFO: Request: GET /themes/Sasoft-v2.0/assets/js/bootstrap.bundle.min.js.map {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540372}
+[2026-04-07 05:39:39] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540379}
+[2026-04-07 05:39:39] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:39:39] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775540379}
+[2026-04-07 05:39:39] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540379}
+[2026-04-07 05:39:42] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540382}
+[2026-04-07 05:40:01] INFO: Request: POST /register {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540401}
+[2026-04-07 05:40:01] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:40:01] INFO: Authentication registration success for brandon@webbypage.com {"email":"brandon@webbypage.com","action":"registration","success":true,"timestamp":1775540401}
+[2026-04-07 05:40:02] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540402}
+[2026-04-07 05:40:02] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:40:14] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540414}
+[2026-04-07 05:40:14] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:40:14] INFO: Authentication logout success for brandon@webbypage.com {"email":"brandon@webbypage.com","action":"logout","success":true,"timestamp":1775540414}
+[2026-04-07 05:40:14] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540414}
+[2026-04-07 05:40:18] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540418}
+[2026-04-07 05:40:18] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:40:18] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775540418}
+[2026-04-07 05:40:18] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540418}
+[2026-04-07 05:40:18] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 05:42:10] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775540530}
+[2026-04-07 05:42:10] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:32:29] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547149}
+[2026-04-07 07:32:29] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547149}
+[2026-04-07 07:32:31] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547151}
+[2026-04-07 07:32:31] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:32:31] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775547151}
+[2026-04-07 07:32:31] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547151}
+[2026-04-07 07:32:31] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:32:39] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547159}
+[2026-04-07 07:32:39] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:33:08] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547188}
+[2026-04-07 07:33:08] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:33:08] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775547188}
+[2026-04-07 07:33:08] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547188}
+[2026-04-07 07:34:42] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547282}
+[2026-04-07 07:34:42] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:42] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775547282}
+[2026-04-07 07:34:42] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547282}
+[2026-04-07 07:34:42] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:49] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547289}
+[2026-04-07 07:34:49] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:49] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775547289}
+[2026-04-07 07:34:49] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547289}
+[2026-04-07 07:34:51] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547291}
+[2026-04-07 07:34:51] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:51] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775547291}
+[2026-04-07 07:34:51] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547291}
+[2026-04-07 07:34:51] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:53] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547293}
+[2026-04-07 07:34:53] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:53] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775547293}
+[2026-04-07 07:34:53] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547293}
+[2026-04-07 07:34:55] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547295}
+[2026-04-07 07:34:55] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:34:55] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775547295}
+[2026-04-07 07:34:55] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547295}
+[2026-04-07 07:34:55] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:35:49] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547349}
+[2026-04-07 07:35:49] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:42:49] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547769}
+[2026-04-07 07:42:49] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:42:49] INFO: Authentication logout success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"logout","success":true,"timestamp":1775547769}
+[2026-04-07 07:42:49] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547769}
+[2026-04-07 07:42:51] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547771}
+[2026-04-07 07:42:51] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:42:51] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1775547771}
+[2026-04-07 07:42:51] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775547771}
+[2026-04-07 07:42:51] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-07 07:52:36] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36","timestamp":1775548356}
+[2026-04-07 07:52:36] INFO: Database connection established {"host":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=127.0.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}

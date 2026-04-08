@@ -51,16 +51,30 @@ function app_db(): PDO
 
     $config = app_db_config();
 
-    $pdo = new PDO(
-        $config['dsn'],
-        $config['username'],
-        $config['password'],
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]
-    );
+    try {
+        $pdo = new PDO(
+            $config['dsn'],
+            $config['username'],
+            $config['password'],
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]
+        );
+        
+        app_log("Database connection established", 'INFO', [
+            'host' => $config['dsn'],
+            'database' => $config['dsn']
+        ]);
+        
+    } catch (PDOException $e) {
+        app_log("Database connection failed: " . $e->getMessage(), 'ERROR', [
+            'dsn' => $config['dsn'],
+            'username' => $config['username']
+        ]);
+        throw $e;
+    }
 
     return $pdo;
 }

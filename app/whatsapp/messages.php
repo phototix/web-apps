@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 // WhatsApp Messages Management
 
-function app_whatsapp_send_message(int $groupId, string $message, ?string $mediaPath = null, ?string $mediaType = null): array {
-    $group = app_whatsapp_get_group($groupId);
+function app_whatsapp_send_message(int $sessionId, string $groupId, string $message, ?string $mediaPath = null, ?string $mediaType = null): array {
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
     if (!$group) {
         throw new Exception('Group not found');
     }
     
-    $session = app_whatsapp_get_session($group['session_id']);
+    $session = app_whatsapp_get_session($sessionId);
     
     $payload = [
         'chatId' => $group['group_id'],
@@ -44,6 +44,7 @@ function app_whatsapp_send_message(int $groupId, string $message, ?string $media
         
         // Store sent message
         $messageId = app_db_insert_group_message([
+            'session_id' => $sessionId,
             'group_id' => $groupId,
             'message_id' => $response['messageId'] ?? uniqid('msg_', true),
             'sender_number' => $session['phone_number'] ?? 'system',
@@ -57,10 +58,11 @@ function app_whatsapp_send_message(int $groupId, string $message, ?string $media
         ]);
         
         // Update group last message info
-        app_db_update_group_last_message($groupId, $message, time() * 1000);
+        app_db_update_group_last_message($sessionId, $groupId, $message, time() * 1000);
         
         // Create real-time update
-        app_create_realtime_update($group['user_id'], 'message_sent', (string) $groupId, [
+        app_create_realtime_update($group['user_id'], 'message_sent', $groupId, [
+            'session_id' => $sessionId,
             'group_id' => $groupId,
             'message_id' => $messageId,
             'content' => $message,
@@ -143,7 +145,8 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
     
     // Store message
     $dbMessageId = app_db_insert_group_message([
-        'group_id' => $group['id'],
+        'session_id' => $sessionId,
+        'group_id' => $group['group_id'],
         'message_id' => $messageId,
         'sender_number' => $sender,
         'sender_name' => $senderName,
@@ -156,11 +159,11 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
     ]);
     
     // Update group last message info
-    app_db_update_group_last_message($group['id'], $content, $messageData['timestamp'] ?? time() * 1000);
+    app_db_update_group_last_message($sessionId, $group['group_id'], $content, $messageData['timestamp'] ?? time() * 1000);
     
     // Increment unread count if not from me
     if (!$isFromMe) {
-        app_db_increment_group_unread_count($group['id']);
+        app_db_increment_group_unread_count($sessionId, $group['group_id']);
     }
     
     // Create real-time update
@@ -194,13 +197,14 @@ function app_db_insert_group_message(array $data): int {
     $pdo = app_db();
     $stmt = $pdo->prepare("
         INSERT INTO group_messages 
-        (group_id, message_id, sender_number, sender_name, message_type, 
+        (session_id, group_id, message_id, sender_number, sender_name, message_type, 
          content, media_url, media_caption, is_from_me, timestamp, created_at)
-        VALUES (:group_id, :message_id, :sender_number, :sender_name, :message_type,
+        VALUES (:session_id, :group_id, :message_id, :sender_number, :sender_name, :message_type,
                 :content, :media_url, :media_caption, :is_from_me, :timestamp, NOW())
     ");
     
     $stmt->execute([
+        'session_id' => $data['session_id'],
         'group_id' => $data['group_id'],
         'message_id' => $data['message_id'],
         'sender_number' => $data['sender_number'],
@@ -216,7 +220,7 @@ function app_db_insert_group_message(array $data): int {
     return (int) $pdo->lastInsertId();
 }
 
-function app_db_update_group_last_message(int $groupId, string $message, int $timestamp): bool {
+function app_db_update_group_last_message(int $sessionId, string $groupId, string $message, int $timestamp): bool {
     $preview = strlen($message) > 50 ? substr($message, 0, 47) . '...' : $message;
     
     $pdo = app_db();
@@ -225,35 +229,36 @@ function app_db_update_group_last_message(int $groupId, string $message, int $ti
         SET last_message_preview = :preview, 
             last_message_timestamp = :timestamp,
             updated_at = NOW()
-        WHERE id = :id
+        WHERE session_id = :session_id AND group_id = :group_id
     ");
     return $stmt->execute([
         'preview' => $preview,
         'timestamp' => $timestamp,
-        'id' => $groupId
+        'session_id' => $sessionId,
+        'group_id' => $groupId
     ]);
 }
 
-function app_db_increment_group_unread_count(int $groupId): bool {
+function app_db_increment_group_unread_count(int $sessionId, string $groupId): bool {
     $pdo = app_db();
     $stmt = $pdo->prepare("
         UPDATE whatsapp_groups 
         SET unread_count = unread_count + 1,
             updated_at = NOW()
-        WHERE id = :id
+        WHERE session_id = :session_id AND group_id = :group_id
     ");
-    return $stmt->execute(['id' => $groupId]);
+    return $stmt->execute(['session_id' => $sessionId, 'group_id' => $groupId]);
 }
 
-function app_db_reset_group_unread_count(int $groupId): bool {
+function app_db_reset_group_unread_count(int $sessionId, string $groupId): bool {
     $pdo = app_db();
     $stmt = $pdo->prepare("
         UPDATE whatsapp_groups 
         SET unread_count = 0,
             updated_at = NOW()
-        WHERE id = :id
+        WHERE session_id = :session_id AND group_id = :group_id
     ");
-    return $stmt->execute(['id' => $groupId]);
+    return $stmt->execute(['session_id' => $sessionId, 'group_id' => $groupId]);
 }
 
 function app_db_get_group_message_by_whatsapp_id(string $whatsappMessageId): ?array {
@@ -267,13 +272,13 @@ function app_db_get_group_message_by_whatsapp_id(string $whatsappMessageId): ?ar
     return $stmt->fetch() ?: null;
 }
 
-function app_whatsapp_sync_group_messages(int $groupId): array {
-    $group = app_whatsapp_get_group($groupId);
+function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): array {
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
     if (!$group) {
         throw new Exception('Group not found');
     }
     
-    $session = app_whatsapp_get_session($group['session_id']);
+    $session = app_whatsapp_get_session($sessionId);
     if (!$session || $session['status'] !== 'active') {
         throw new Exception('Session is not active');
     }
@@ -337,7 +342,8 @@ function app_whatsapp_sync_group_messages(int $groupId): array {
                 
                 // Store message
                 $messageId = app_db_insert_group_message([
-                    'group_id' => $groupId,
+                    'session_id' => $group['session_id'],
+                    'group_id' => $group['group_id'],
                     'message_id' => $messageData['id'] ?? uniqid('msg_', true),
                     'whatsapp_message_id' => $messageData['id'] ?? '',
                     'sender_number' => $senderNumber,
@@ -355,7 +361,7 @@ function app_whatsapp_sync_group_messages(int $groupId): array {
                     
                     // Update group last message if this is the newest
                     if (!$isFromMe) {
-                        app_db_update_group_last_message($groupId, $content, $messageData['timestamp'] ?? time() * 1000);
+                        app_db_update_group_last_message($group['session_id'], $group['group_id'], $content, $messageData['timestamp'] ?? time() * 1000);
                     }
                 }
             } else {

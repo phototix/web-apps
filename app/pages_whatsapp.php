@@ -397,7 +397,7 @@ function app_page_groups(): void {
         foreach ($groups as $group) {
             if ($group['id'] == $selectedGroupId) {
                 $selectedGroup = $group;
-                $messages = app_whatsapp_get_group_messages($selectedGroupId, 50);
+                $messages = app_whatsapp_get_group_messages($selectedGroup['session_id'], $selectedGroup['group_id'], 50);
                 break;
             }
         }

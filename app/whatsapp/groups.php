@@ -89,15 +89,27 @@ function app_whatsapp_get_group(int $groupId): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function app_whatsapp_get_group_messages(int $groupId, int $limit = 50, ?int $beforeTimestamp = null): array {
+function app_whatsapp_get_group_by_session_and_id(int $sessionId, string $groupId): ?array {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        SELECT wg.*, ws.session_name as whatsapp_session_name, ws.user_id 
+        FROM whatsapp_groups wg
+        JOIN whatsapp_sessions ws ON wg.session_id = ws.id
+        WHERE wg.session_id = :session_id AND wg.group_id = :group_id
+    ");
+    $stmt->execute(['session_id' => $sessionId, 'group_id' => $groupId]);
+    return $stmt->fetch() ?: null;
+}
+
+function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $limit = 50, ?int $beforeTimestamp = null): array {
     $pdo = app_db();
     
     $query = "
         SELECT * FROM group_messages 
-        WHERE group_id = :group_id
+        WHERE session_id = :session_id AND group_id = :group_id
     ";
     
-    $params = ['group_id' => $groupId];
+    $params = ['session_id' => $sessionId, 'group_id' => $groupId];
     
     if ($beforeTimestamp) {
         $query .= " AND timestamp < :before_timestamp";
@@ -107,7 +119,8 @@ function app_whatsapp_get_group_messages(int $groupId, int $limit = 50, ?int $be
     $query .= " ORDER BY timestamp DESC LIMIT :limit";
     
     $stmt = $pdo->prepare($query);
-    $stmt->bindValue('group_id', $groupId, PDO::PARAM_INT);
+    $stmt->bindValue('session_id', $sessionId, PDO::PARAM_INT);
+    $stmt->bindValue('group_id', $groupId, PDO::PARAM_STR);
     $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
     if ($beforeTimestamp) {
         $stmt->bindValue('before_timestamp', $beforeTimestamp, PDO::PARAM_INT);

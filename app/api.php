@@ -283,34 +283,43 @@ function api_whatsapp_get_qr(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
-    $sessionIdParam = api_get_query_param('id');
-    if (!$sessionIdParam) {
-        api_validation_error(['id' => 'Session ID is required']);
+    $sessionParam = api_get_query_param('id');
+    if (!$sessionParam) {
+        api_validation_error(['id' => 'Session ID or name is required']);
     }
     
-    $sessionId = (int) $sessionIdParam;
-    if ($sessionId <= 0) {
-        api_validation_error(['id' => 'Invalid session ID']);
+    // Try to get session by ID (numeric) first, then by name (string)
+    $session = null;
+    if (is_numeric($sessionParam)) {
+        $sessionId = (int) $sessionParam;
+        if ($sessionId > 0) {
+            $session = app_whatsapp_get_session($sessionId);
+        }
     }
     
-    // Verify session belongs to user
-    $session = app_whatsapp_get_session($sessionId);
+    // If not found by ID, try by name
+    if (!$session) {
+        $session = app_whatsapp_get_session_by_name($sessionParam);
+    }
+    
     if (!$session || $session['user_id'] !== $user['id']) {
         api_forbidden('Session not found or access denied');
     }
     
     try {
-        $qrCode = app_whatsapp_get_qr($sessionId);
+        $qrCode = app_whatsapp_get_qr($session['id']);
         if ($qrCode === null) {
             api_success('No QR code available (session may not be in scan_qr_code state)', [
                 'qr_code' => null,
-                'session_id' => $sessionId,
+                'session_id' => $session['id'],
+                'session_name' => $session['session_name'],
                 'available' => false
             ]);
         } else {
             api_success('QR code retrieved', [
                 'qr_code' => $qrCode,
-                'session_id' => $sessionId,
+                'session_id' => $session['id'],
+                'session_name' => $session['session_name'],
                 'available' => true
             ]);
         }
@@ -323,24 +332,31 @@ function api_whatsapp_get_session_status(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
-    $sessionIdParam = api_get_query_param('id');
-    if (!$sessionIdParam) {
-        api_validation_error(['id' => 'Session ID is required']);
+    $sessionParam = api_get_query_param('id');
+    if (!$sessionParam) {
+        api_validation_error(['id' => 'Session ID or name is required']);
     }
     
-    $sessionId = (int) $sessionIdParam;
-    if ($sessionId <= 0) {
-        api_validation_error(['id' => 'Invalid session ID']);
+    // Try to get session by ID (numeric) first, then by name (string)
+    $session = null;
+    if (is_numeric($sessionParam)) {
+        $sessionId = (int) $sessionParam;
+        if ($sessionId > 0) {
+            $session = app_whatsapp_get_session($sessionId);
+        }
     }
     
-    // Verify session belongs to user
-    $session = app_whatsapp_get_session($sessionId);
+    // If not found by ID, try by name
+    if (!$session) {
+        $session = app_whatsapp_get_session_by_name($sessionParam);
+    }
+    
     if (!$session || $session['user_id'] !== $user['id']) {
         api_forbidden('Session not found or access denied');
     }
     
     try {
-        $status = app_whatsapp_get_session_status($sessionId);
+        $status = app_whatsapp_get_session_status($session['id']);
         api_success('Session status retrieved', $status);
     } catch (Exception $e) {
         api_error($e->getMessage());
@@ -351,24 +367,31 @@ function api_whatsapp_delete_session(): void {
     api_require_method('DELETE');
     $user = api_require_auth();
     
-    $sessionIdParam = api_get_query_param('id');
-    if (!$sessionIdParam) {
-        api_validation_error(['id' => 'Session ID is required']);
+    $sessionParam = api_get_query_param('id');
+    if (!$sessionParam) {
+        api_validation_error(['id' => 'Session ID or name is required']);
     }
     
-    $sessionId = (int) $sessionIdParam;
-    if ($sessionId <= 0) {
-        api_validation_error(['id' => 'Invalid session ID']);
+    // Try to get session by ID (numeric) first, then by name (string)
+    $session = null;
+    if (is_numeric($sessionParam)) {
+        $sessionId = (int) $sessionParam;
+        if ($sessionId > 0) {
+            $session = app_whatsapp_get_session($sessionId);
+        }
     }
     
-    // Verify session belongs to user
-    $session = app_whatsapp_get_session($sessionId);
+    // If not found by ID, try by name
+    if (!$session) {
+        $session = app_whatsapp_get_session_by_name($sessionParam);
+    }
+    
     if (!$session || $session['user_id'] !== $user['id']) {
         api_forbidden('Session not found or access denied');
     }
     
     try {
-        $success = app_whatsapp_delete_session($sessionId);
+        $success = app_whatsapp_delete_session($session['id']);
         if ($success) {
             api_success('Session deleted');
         } else {
@@ -383,24 +406,31 @@ function api_whatsapp_sync_groups(): void {
     api_require_method('POST');
     $user = api_require_auth();
     
-    $sessionIdParam = api_get_query_param('id');
-    if (!$sessionIdParam) {
-        api_validation_error(['id' => 'Session ID is required']);
+    $sessionParam = api_get_query_param('id');
+    if (!$sessionParam) {
+        api_validation_error(['id' => 'Session ID or name is required']);
     }
     
-    $sessionId = (int) $sessionIdParam;
-    if ($sessionId <= 0) {
-        api_validation_error(['id' => 'Invalid session ID']);
+    // Try to get session by ID (numeric) first, then by name (string)
+    $session = null;
+    if (is_numeric($sessionParam)) {
+        $sessionId = (int) $sessionParam;
+        if ($sessionId > 0) {
+            $session = app_whatsapp_get_session($sessionId);
+        }
     }
     
-    // Verify session belongs to user
-    $session = app_whatsapp_get_session($sessionId);
+    // If not found by ID, try by name
+    if (!$session) {
+        $session = app_whatsapp_get_session_by_name($sessionParam);
+    }
+    
     if (!$session || $session['user_id'] !== $user['id']) {
         api_forbidden('Session not found or access denied');
     }
     
     try {
-        $result = app_whatsapp_sync_groups($sessionId);
+        $result = app_whatsapp_sync_groups($session['id']);
         api_success('Groups synced successfully', $result);
     } catch (Exception $e) {
         api_error($e->getMessage());
@@ -457,28 +487,54 @@ function api_whatsapp_get_group_messages(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
-    $groupId = (int) api_get_query_param('id');
+    $groupIdParam = api_get_query_param('id');
     $limit = min(100, (int) api_get_query_param('limit', 50));
     $before = api_get_query_param('before') ? (int) api_get_query_param('before') : null;
     
-    if (!$groupId) {
+    if (!$groupIdParam) {
         api_validation_error(['id' => 'Group ID is required']);
     }
     
-    // Verify group belongs to user
-    $group = app_whatsapp_get_group($groupId);
+    // Handle both numeric group ID (backward compatibility) and string group ID with session
+    $group = null;
+    $sessionId = null;
+    $groupId = null;
+    
+    if (is_numeric($groupIdParam)) {
+        // Backward compatibility: numeric group ID
+        $numericGroupId = (int) $groupIdParam;
+        $group = app_whatsapp_get_group($numericGroupId);
+        if ($group) {
+            $sessionId = $group['session_id'];
+            $groupId = $group['group_id']; // Get string group ID
+        }
+    } else {
+        // New way: string group ID with session_id query parameter
+        $sessionId = (int) api_get_query_param('session_id');
+        $groupId = $groupIdParam;
+        
+        if ($sessionId) {
+            $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
+        }
+    }
+    
     if (!$group || $group['user_id'] !== $user['id']) {
         api_forbidden('Group not found or access denied');
     }
     
-    $messages = app_whatsapp_get_group_messages($groupId, $limit, $before);
+    if (!$sessionId || !$groupId) {
+        api_error('Unable to determine session or group');
+    }
+    
+    $messages = app_whatsapp_get_group_messages($sessionId, $groupId, $limit, $before);
     
     // Reset unread count when fetching messages
-    app_db_reset_group_unread_count($groupId);
+    app_db_reset_group_unread_count($sessionId, $groupId);
     
     api_success('Messages retrieved', [
         'messages' => $messages,
         'group_id' => $groupId,
+        'session_id' => $sessionId,
         'has_more' => count($messages) === $limit
     ]);
 }
@@ -488,26 +544,51 @@ function api_whatsapp_send_message(): void {
     $user = api_require_auth();
     
     $input = api_get_json_input();
-    $groupId = (int) ($input['group_id'] ?? 0);
+    $groupIdParam = $input['group_id'] ?? 0;
     $message = trim($input['message'] ?? '');
     $mediaPath = $input['media_path'] ?? null;
     $mediaType = $input['media_type'] ?? null;
     
-    if (!$groupId) {
+    if (!$groupIdParam) {
         api_validation_error(['group_id' => 'Group ID is required']);
     }
     if (empty($message) && empty($mediaPath)) {
         api_validation_error(['message' => 'Message or media is required']);
     }
     
-    // Verify group belongs to user
-    $group = app_whatsapp_get_group($groupId);
+    // Handle both numeric group ID (backward compatibility) and string group ID with session
+    $group = null;
+    $sessionId = null;
+    $groupId = null;
+    
+    if (is_numeric($groupIdParam)) {
+        // Backward compatibility: numeric group ID
+        $numericGroupId = (int) $groupIdParam;
+        $group = app_whatsapp_get_group($numericGroupId);
+        if ($group) {
+            $sessionId = $group['session_id'];
+            $groupId = $group['group_id']; // Get string group ID
+        }
+    } else {
+        // New way: string group ID with session_id
+        $sessionId = (int) ($input['session_id'] ?? 0);
+        $groupId = trim($groupIdParam);
+        
+        if ($sessionId) {
+            $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
+        }
+    }
+    
     if (!$group || $group['user_id'] !== $user['id']) {
         api_forbidden('Group not found or access denied');
     }
     
+    if (!$sessionId || !$groupId) {
+        api_error('Unable to determine session or group');
+    }
+    
     try {
-        $result = app_whatsapp_send_message($groupId, $message, $mediaPath, $mediaType);
+        $result = app_whatsapp_send_message($sessionId, $groupId, $message, $mediaPath, $mediaType);
         api_success('Message sent', $result);
     } catch (Exception $e) {
         api_error($e->getMessage());

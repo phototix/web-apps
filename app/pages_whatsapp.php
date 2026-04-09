@@ -182,6 +182,37 @@ function app_page_whatsapp_connect(): void {
     
     <!-- QR Code Loading Script -->
     <script>
+    function loadQRCode(button) {
+        const sessionId = button.dataset.sessionId;
+        const qrContainer = document.getElementById(`qr-container-${sessionId}`);
+        
+        if (!qrContainer) return;
+        
+        // Show loading state
+        const originalHTML = qrContainer.innerHTML;
+        qrContainer.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="text-muted mt-2">Loading QR code...</p></div>';
+        
+        // Fetch QR code from API
+        fetch(`/api/whatsapp/sessions/${sessionId}/qr`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data.qr_code) {
+                    qrContainer.innerHTML = `<img src="${data.data.qr_code}" alt="WhatsApp QR Code" class="img-fluid" style="max-width: 200px;">`;
+                } else {
+                    qrContainer.innerHTML = '<div class="alert alert-warning">QR code not available. Session may be connecting or already connected.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading QR code:', error);
+                qrContainer.innerHTML = '<div class="alert alert-danger">Failed to load QR code. Please try again.</div>';
+            });
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Load QR codes for pending sessions
         document.querySelectorAll('.refresh-qr').forEach(button => {

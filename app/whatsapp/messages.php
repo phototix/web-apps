@@ -125,6 +125,9 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
     $content = '';
     $mediaUrl = null;
     $mediaCaption = null;
+    $mediaType = null;
+    $mediaSize = null;
+    $quotedMessageId = null;
     $messageType = 'text';
     
     if (isset($messageData['body'])) {
@@ -138,6 +141,13 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
     if (isset($messageData['mediaUrl'])) {
         $mediaUrl = $messageData['mediaUrl'];
         $messageType = $messageData['mediaType'] ?? 'image';
+        $mediaType = $messageData['mediaType'] ?? null;
+        $mediaSize = $messageData['fileSize'] ?? null;
+    }
+    
+    // Check for quoted message
+    if (isset($messageData['quotedMsg']) && isset($messageData['quotedMsg']['id'])) {
+        $quotedMessageId = $messageData['quotedMsg']['id'];
     }
     
     // Check if message is from me
@@ -154,6 +164,9 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
         'content' => $content,
         'media_url' => $mediaUrl,
         'media_caption' => $mediaCaption,
+        'quoted_message_id' => $quotedMessageId,
+        'media_type' => $mediaType,
+        'media_size' => $mediaSize,
         'is_from_me' => $isFromMe,
         'timestamp' => $messageData['timestamp'] ?? time() * 1000
     ]);
@@ -198,9 +211,11 @@ function app_db_insert_group_message(array $data): int {
     $stmt = $pdo->prepare("
         INSERT INTO group_messages 
         (session_id, group_id, message_id, sender_number, sender_name, message_type, 
-         content, media_url, media_caption, is_from_me, timestamp, created_at)
+         content, media_url, media_caption, quoted_message_id, media_type, media_size,
+         is_from_me, timestamp, created_at)
         VALUES (:session_id, :group_id, :message_id, :sender_number, :sender_name, :message_type,
-                :content, :media_url, :media_caption, :is_from_me, :timestamp, NOW())
+                :content, :media_url, :media_caption, :quoted_message_id, :media_type, :media_size,
+                :is_from_me, :timestamp, NOW())
     ");
     
     $stmt->execute([
@@ -211,8 +226,11 @@ function app_db_insert_group_message(array $data): int {
         'sender_name' => $data['sender_name'],
         'message_type' => $data['message_type'],
         'content' => $data['content'],
-        'media_url' => $data['media_url'],
-        'media_caption' => $data['media_caption'],
+        'media_url' => $data['media_url'] ?? null,
+        'media_caption' => $data['media_caption'] ?? null,
+        'quoted_message_id' => $data['quoted_message_id'] ?? null,
+        'media_type' => $data['media_type'] ?? null,
+        'media_size' => $data['media_size'] ?? null,
         'is_from_me' => $data['is_from_me'] ? 1 : 0,
         'timestamp' => $data['timestamp']
     ]);
@@ -383,4 +401,148 @@ function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): arra
         ]);
         throw new Exception('Failed to sync messages: ' . $e->getMessage());
     }
+}
+
+function app_whatsapp_store_incoming_message(array $messageData): array
+{
+    $pdo = app_db();
+    
+    // Check if message already exists
+    $stmt = $pdo->prepare("
+        SELECT id FROM group_messages 
+        WHERE session_id = :session_id 
+        AND group_id = :group_id 
+        AND message_id = :message_id
+    ");
+    $stmt->execute([
+        'session_id' => $messageData['session_id'],
+        'group_id' => $messageData['chat_id'],
+        'message_id' => $messageData['message_id']
+    ]);
+    
+    $existing = $stmt->fetch();
+    if ($existing) {
+        return ['id' => $existing['id'], 'existing' => true];
+    }
+    
+    // Check if group exists
+    $stmt = $pdo->prepare("
+        SELECT id FROM whatsapp_groups 
+        WHERE session_id = :session_id 
+        AND group_id = :group_id
+    ");
+    $stmt->execute([
+        'session_id' => $messageData['session_id'],
+        'group_id' => $messageData['chat_id']
+    ]);
+    
+    $groupExists = $stmt->fetch();
+    if (!$groupExists) {
+        // Try to sync groups
+        try {
+            app_whatsapp_sync_groups($messageData['session_id']);
+            
+            // Check again
+            $stmt->execute([
+                'session_id' => $messageData['session_id'],
+                'group_id' => $messageData['chat_id']
+            ]);
+            $groupExists = $stmt->fetch();
+            
+            if (!$groupExists) {
+                // Create a placeholder group
+                $stmt = $pdo->prepare("
+                    INSERT INTO whatsapp_groups 
+                    (session_id, group_id, name, participant_count, created_at, updated_at)
+                    VALUES (:session_id, :group_id, :name, 0, NOW(), NOW())
+                ");
+                $stmt->execute([
+                    'session_id' => $messageData['session_id'],
+                    'group_id' => $messageData['chat_id'],
+                    'name' => 'Unknown Group (' . substr($messageData['chat_id'], 0, 10) . '...)'
+                ]);
+            }
+        } catch (Exception $e) {
+            throw new Exception('Group not found and failed to sync: ' . $e->getMessage());
+        }
+    }
+    
+    // Insert new message
+    $stmt = $pdo->prepare("
+        INSERT INTO group_messages 
+        (session_id, group_id, message_id, sender_number, sender_name, message_type, 
+         content, media_url, media_caption, is_from_me, timestamp, created_at,
+         quoted_message_id, media_type, media_size)
+        VALUES (:session_id, :group_id, :message_id, :sender_number, :sender_name, :message_type,
+                :content, :media_url, :media_caption, :is_from_me, :timestamp, NOW(),
+                :quoted_message_id, :media_type, :media_size)
+    ");
+    
+    $stmt->execute([
+        'session_id' => $messageData['session_id'],
+        'group_id' => $messageData['chat_id'],
+        'message_id' => $messageData['message_id'],
+        'sender_number' => $messageData['sender'],
+        'sender_name' => $messageData['sender_name'],
+        'message_type' => $messageData['message_type'],
+        'content' => $messageData['content'],
+        'media_url' => $messageData['media_url'] ?: null,
+        'media_caption' => $messageData['media_caption'] ?: null,
+        'is_from_me' => $messageData['is_from_me'] ? 1 : 0,
+        'timestamp' => $messageData['timestamp'],
+        'quoted_message_id' => $messageData['quoted_message_id'] ?: null,
+        'media_type' => $messageData['media_type'] ?: null,
+        'media_size' => $messageData['media_size'] ?: null
+    ]);
+    
+    $messageId = (int) $pdo->lastInsertId();
+    
+    // Update group's last message
+    $preview = strlen($messageData['content']) > 50 ? substr($messageData['content'], 0, 47) . '...' : $messageData['content'];
+    if (!empty($messageData['media_caption'])) {
+        $preview = $messageData['media_caption'];
+    } elseif (!empty($messageData['media_url'])) {
+        $preview = "[{$messageData['message_type']}]";
+    }
+    
+    $stmt = $pdo->prepare("
+        UPDATE whatsapp_groups 
+        SET last_message_preview = :preview, 
+            last_message_timestamp = :timestamp,
+            unread_count = unread_count + 1,
+            updated_at = NOW()
+        WHERE session_id = :session_id AND group_id = :group_id
+    ");
+    $stmt->execute([
+        'preview' => $preview,
+        'timestamp' => $messageData['timestamp'],
+        'session_id' => $messageData['session_id'],
+        'group_id' => $messageData['chat_id']
+    ]);
+    
+    // Create real-time update
+    $stmt = $pdo->prepare("
+        INSERT INTO realtime_updates 
+        (user_id, update_type, entity_id, data, created_at)
+        SELECT ws.user_id, 'new_message', :entity_id, :data, NOW()
+        FROM whatsapp_sessions ws
+        WHERE ws.id = :session_id
+    ");
+    $stmt->execute([
+        'entity_id' => $messageData['chat_id'],
+        'data' => json_encode([
+            'session_id' => $messageData['session_id'],
+            'group_id' => $messageData['chat_id'],
+            'message_id' => $messageId,
+            'sender' => $messageData['sender'],
+            'sender_name' => $messageData['sender_name'],
+            'content' => $messageData['content'],
+            'message_type' => $messageData['message_type'],
+            'timestamp' => $messageData['timestamp'],
+            'is_from_me' => $messageData['is_from_me']
+        ]),
+        'session_id' => $messageData['session_id']
+    ]);
+    
+    return ['id' => $messageId, 'existing' => false];
 }

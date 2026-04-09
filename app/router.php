@@ -74,6 +74,7 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/groups' => 'api_whatsapp_get_groups',
             '/api/whatsapp/groups/{id}/messages' => 'api_whatsapp_get_group_messages',
             '/api/realtime/updates' => 'api_realtime_updates',
+            '/api/whatsapp/incoming/verify' => 'api_whatsapp_incoming_verify',
         ],
         'POST' => [
             '/api/auth/login' => 'api_auth_login',
@@ -85,6 +86,8 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/groups' => 'api_whatsapp_create_group',
             '/api/whatsapp/messages' => 'api_whatsapp_send_message',
             '/api/realtime/mark-read' => 'api_mark_update_read',
+            '/api/whatsapp/incoming/message' => 'api_whatsapp_incoming_message',
+            '/api/whatsapp/incoming/messages/batch' => 'api_whatsapp_incoming_messages_batch',
         ],
         'DELETE' => [
             '/api/whatsapp/sessions/{id}' => 'api_whatsapp_delete_session',

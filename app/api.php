@@ -625,8 +625,8 @@ function api_realtime_updates(): void {
         'last_id' => $lastUpdateId
     ]);
 }
-
-function api_mark_update_read(): void {
+function api_mark_update_read(): void
+{
     api_require_method('POST');
     $user = api_require_auth();
     
@@ -638,4 +638,239 @@ function api_mark_update_read(): void {
     }
     
     api_success('Update marked as read');
+}
+
+// API Key Authentication Functions
+
+function api_verify_api_key(): bool
+{
+    $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+    
+    if (empty($apiKey)) {
+        return false;
+    }
+    
+    $envApiKey = getenv('WHATSAPP_API_KEY');
+    return hash_equals($envApiKey, $apiKey);
+}
+
+function api_require_api_key(): void
+{
+    if (!api_verify_api_key()) {
+        api_unauthorized('Invalid or missing API key');
+    }
+}
+
+// WhatsApp Incoming Messages API
+
+function api_whatsapp_incoming_message(): void
+{
+    api_require_method('POST');
+    api_require_api_key();
+    
+    $input = api_get_json_input();
+    
+    // Validate required fields
+    $sessionName = trim($input['session_name'] ?? '');
+    $chatId = trim($input['chat_id'] ?? '');
+    $messageId = trim($input['message_id'] ?? '');
+    $sender = trim($input['sender'] ?? '');
+    $content = trim($input['content'] ?? '');
+    $messageType = trim($input['message_type'] ?? '');
+    $isFromMe = (bool) ($input['is_from_me'] ?? false);
+    
+    $errors = [];
+    
+    if (empty($sessionName)) {
+        $errors['session_name'] = 'Session name is required';
+    }
+    
+    if (empty($chatId)) {
+        $errors['chat_id'] = 'Chat ID is required';
+    } elseif (!str_ends_with($chatId, '@g.us')) {
+        $errors['chat_id'] = 'Chat ID must be a group ID (ending with @g.us)';
+    }
+    
+    if (empty($messageId)) {
+        $errors['message_id'] = 'Message ID is required';
+    }
+    
+    if (empty($sender)) {
+        $errors['sender'] = 'Sender is required';
+    }
+    
+    if (empty($content) && empty($input['media_url'])) {
+        $errors['content'] = 'Content or media URL is required';
+    }
+    
+    if (empty($messageType)) {
+        $errors['message_type'] = 'Message type is required';
+    } elseif (!in_array($messageType, ['text', 'image', 'video', 'audio', 'document', 'sticker'])) {
+        $errors['message_type'] = 'Invalid message type. Must be: text, image, video, audio, document, sticker';
+    }
+    
+    if (!empty($errors)) {
+        api_validation_error($errors);
+    }
+    
+    // Get session by name
+    $session = app_whatsapp_get_session_by_name($sessionName);
+    if (!$session) {
+        api_error('Session not found', [], 404);
+    }
+    
+    // Check if session is active
+    if ($session['status'] !== 'active') {
+        api_error('Session is not active', [], 403);
+    }
+    
+    // Prepare message data
+    $messageData = [
+        'session_id' => $session['id'],
+        'chat_id' => $chatId,
+        'message_id' => $messageId,
+        'sender' => $sender,
+        'sender_name' => trim($input['sender_name'] ?? $sender),
+        'content' => $content,
+        'message_type' => $messageType,
+        'timestamp' => (int) ($input['timestamp'] ?? time() * 1000),
+        'is_from_me' => $isFromMe,
+        'quoted_message_id' => trim($input['quoted_message_id'] ?? ''),
+        'media_url' => trim($input['media_url'] ?? ''),
+        'media_caption' => trim($input['media_caption'] ?? ''),
+        'media_type' => trim($input['media_type'] ?? ''),
+        'media_size' => (int) ($input['media_size'] ?? 0),
+    ];
+    
+    try {
+        // Store the message
+        $result = app_whatsapp_store_incoming_message($messageData);
+        
+        api_success('Message stored successfully', [
+            'message_id' => $result['id'],
+            'group_id' => $chatId,
+            'session_name' => $sessionName,
+            'session_id' => $session['id'],
+            'stored_at' => date('Y-m-d H:i:s')
+        ], 201);
+        
+    } catch (Exception $e) {
+        api_error('Failed to store message: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_incoming_messages_batch(): void
+{
+    api_require_method('POST');
+    api_require_api_key();
+    
+    $input = api_get_json_input();
+    $messages = $input['messages'] ?? [];
+    
+    if (empty($messages) || !is_array($messages)) {
+        api_validation_error(['messages' => 'Messages array is required']);
+    }
+    
+    $storedCount = 0;
+    $failedCount = 0;
+    $failedMessages = [];
+    
+    foreach ($messages as $index => $message) {
+        try {
+            // Validate required fields for each message
+            $sessionName = trim($message['session_name'] ?? '');
+            $chatId = trim($message['chat_id'] ?? '');
+            $messageId = trim($message['message_id'] ?? '');
+            $sender = trim($message['sender'] ?? '');
+            $content = trim($message['content'] ?? '');
+            $messageType = trim($message['message_type'] ?? '');
+            $isFromMe = (bool) ($message['is_from_me'] ?? false);
+            
+            if (empty($sessionName) || empty($chatId) || empty($messageId) || empty($sender) || 
+                (empty($content) && empty($message['media_url'])) || empty($messageType)) {
+                throw new Exception('Missing required fields');
+            }
+            
+            if (!str_ends_with($chatId, '@g.us')) {
+                throw new Exception('Chat ID must be a group ID');
+            }
+            
+            // Get session by name
+            $session = app_whatsapp_get_session_by_name($sessionName);
+            if (!$session || $session['status'] !== 'active') {
+                throw new Exception('Session not found or not active');
+            }
+            
+            // Prepare message data
+            $messageData = [
+                'session_id' => $session['id'],
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+                'sender' => $sender,
+                'sender_name' => trim($message['sender_name'] ?? $sender),
+                'content' => $content,
+                'message_type' => $messageType,
+                'timestamp' => (int) ($message['timestamp'] ?? time() * 1000),
+                'is_from_me' => $isFromMe,
+                'quoted_message_id' => trim($message['quoted_message_id'] ?? ''),
+                'media_url' => trim($message['media_url'] ?? ''),
+                'media_caption' => trim($message['media_caption'] ?? ''),
+                'media_type' => trim($message['media_type'] ?? ''),
+                'media_size' => (int) ($message['media_size'] ?? 0),
+            ];
+            
+            // Store the message
+            app_whatsapp_store_incoming_message($messageData);
+            $storedCount++;
+            
+        } catch (Exception $e) {
+            $failedCount++;
+            $failedMessages[] = [
+                'index' => $index,
+                'message_id' => $message['message_id'] ?? 'unknown',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    api_success("{$storedCount} messages stored successfully", [
+        'stored_count' => $storedCount,
+        'failed_count' => $failedCount,
+        'failed_messages' => $failedMessages,
+        'session_name' => !empty($messages[0]['session_name']) ? $messages[0]['session_name'] : null
+    ], 201);
+}
+
+function api_whatsapp_incoming_verify(): void
+{
+    api_require_method('GET');
+    api_require_api_key();
+    
+    // Get all active sessions
+    $pdo = app_db();
+    $stmt = $pdo->query("
+        SELECT id, session_name, user_id, status, created_at 
+        FROM whatsapp_sessions 
+        WHERE status = 'active'
+        ORDER BY created_at DESC
+    ");
+    $sessions = $stmt->fetchAll() ?: [];
+    
+    // Get WhatsApp endpoint from environment
+    $whatsappEndpoint = getenv('WHATSAPP_API_ENDPOINT') ?: 'http://localhost:3000';
+    
+    api_success('API key is valid', [
+        'valid' => true,
+        'api_key' => '***' . substr($_SERVER['HTTP_X_API_KEY'] ?? '', -4),
+        'whatsapp_endpoint' => $whatsappEndpoint,
+        'available_sessions' => array_map(function($session) {
+            return [
+                'id' => (int) $session['id'],
+                'session_name' => $session['session_name'],
+                'user_id' => (int) $session['user_id'],
+                'status' => $session['status'],
+                'created_at' => $session['created_at']
+            ];
+        }, $sessions)
+    ]);
 }

@@ -32,7 +32,7 @@ function app_whatsapp_create_session(int $userId): array {
     
     // Generate webhook URL with HMAC secret
     $webhookSecret = bin2hex(random_bytes(32));
-    $webhookUrl = "http://localhost:5678/webhook/e8250965-f606-4d8e-9f55-47198bd88cf3/waha";
+    $webhookUrl = "https://n8n.ezy.chat/webhook/e8250965-f606-4d8e-9f55-47198bd88cf3/waha";
     
     try {
         // Call WAHA API to create and start session
@@ -42,7 +42,7 @@ function app_whatsapp_create_session(int $userId): array {
             'config' => [
                 'webhooks' => [[
                     'url' => $webhookUrl,
-                    'events' => ['message', 'session.status'],
+                    'events' => ['message'],
                     'hmac' => ['key' => $webhookSecret]
                 ]]
             ]

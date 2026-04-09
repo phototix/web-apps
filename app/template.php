@@ -29,14 +29,24 @@ function app_asset(string $path): string
     return '/assets/' . ltrim($path, '/');
 }
 
+function app_asset_version(): string
+{
+    static $version = null;
+    
+    if ($version === null) {
+        $version = '20260409160524'; // Default version, updated by bump_version.php
+    }
+    
+    return $version;
+}
+
 function app_theme_asset(string $path): string
 {
     $assetUrl = '/themes/' . app_theme() . '/' . ltrim($path, '/');
     
     // Add cache busting version for CSS, JS, and image files
     if (preg_match('/\.(css|js|png|jpg|jpeg|gif|svg|ico)$/i', $path)) {
-        $version = '20260407112613'; // Updated when logo changed
-        $assetUrl .= '?v=' . $version;
+        $assetUrl .= '?v=' . app_asset_version();
     }
     
     return $assetUrl;
@@ -153,6 +163,11 @@ function app_render_head(string $title): void
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+        }
+        
+        /* Fix for chat-box height issue - remove bottom padding from dashboard .py-4 */
+        .dashboard-content .py-4 {
+            padding-bottom: 0 !important;
         }
         
         .dashboard-header {
@@ -304,6 +319,8 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/YTPlayer.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/count-to.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- Category Management -->
+    <script src="/assets/js/category-management.js"></script>
         <?php
 
         return;
@@ -324,6 +341,8 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/count-to.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/validnavs.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- Category Management -->
+    <script src="/assets/js/category-management.js"></script>
         <?php
 
         return;
@@ -348,6 +367,8 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/circle-progress.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/validnavs.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <!-- Category Management -->
+    <script src="/assets/js/category-management.js"></script>
     <?php
 }
 

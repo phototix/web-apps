@@ -182,7 +182,8 @@ function api_auth_register(): void
     }
     
     try {
-        $result = app_register_user($name, $email, $password);
+        $inviteCode = $data['invite_code'] ?? null;
+        $result = app_register_user($name, $email, $password, 'admin', $inviteCode);
         
         if ($result['success'] === true) {
             $user = app_current_user();
@@ -873,4 +874,309 @@ function api_whatsapp_incoming_verify(): void
             ];
         }, $sessions)
     ]);
+}
+
+// Category API Functions
+
+function api_whatsapp_get_categories(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+    
+    try {
+        $parentId = api_get_query_param('parent_id');
+        $parentId = ($parentId !== null && $parentId !== '') ? (int) $parentId : null;
+        
+        $all = api_get_query_param('all') === 'true';
+        
+        $categories = app_whatsapp_get_user_categories($user['id'], $parentId, $all);
+        
+        api_success('Categories retrieved', [
+            'categories' => array_map(function($category) {
+                return [
+                    'id' => (int) $category['id'],
+                    'name' => $category['name'],
+                    'description' => $category['description'],
+                    'color' => $category['color'],
+                    'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
+                    'parent_name' => $category['parent_name'],
+                    'subcategory_count' => (int) $category['subcategory_count'],
+                    'message_count' => (int) $category['message_count'],
+                    'group_count' => (int) $category['group_count'],
+                    'sort_order' => (int) $category['sort_order'],
+                    'is_active' => (bool) $category['is_active'],
+                    'created_at' => $category['created_at'],
+                    'updated_at' => $category['updated_at']
+                ];
+            }, $categories)
+        ]);
+    } catch (Exception $e) {
+        app_log('Failed to get categories: ' . $e->getMessage(), 'ERROR');
+        api_error('Failed to retrieve categories: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_get_category_tree(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+    
+    try {
+        $categories = app_whatsapp_get_category_tree($user['id']);
+        
+        api_success('Category tree retrieved', [
+            'categories' => $categories
+        ]);
+    } catch (Exception $e) {
+        app_log('Failed to get category tree: ' . $e->getMessage(), 'ERROR');
+        api_error('Failed to retrieve category tree: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_get_category(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+    
+    $categoryId = (int) api_get_query_param('id');
+    
+    $category = app_whatsapp_get_category($categoryId);
+    if (!$category || $category['user_id'] !== $user['id']) {
+        api_forbidden('Category not found or access denied');
+    }
+    
+    api_success('Category retrieved', [
+        'category' => [
+            'id' => (int) $category['id'],
+            'name' => $category['name'],
+            'description' => $category['description'],
+            'color' => $category['color'],
+            'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
+            'parent_name' => $category['parent_name'],
+            'subcategory_count' => (int) $category['subcategory_count'],
+            'message_count' => (int) $category['message_count'],
+            'group_count' => (int) $category['group_count'],
+            'sort_order' => (int) $category['sort_order'],
+            'is_active' => (bool) $category['is_active'],
+            'created_at' => $category['created_at'],
+            'updated_at' => $category['updated_at']
+        ]
+    ]);
+}
+
+function api_whatsapp_create_category(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+    
+    $data = api_get_json_input();
+    
+    $name = trim($data['name'] ?? '');
+    $description = trim($data['description'] ?? '');
+    $color = trim($data['color'] ?? '');
+    $parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
+    
+    if (empty($name)) {
+        api_validation_error(['name' => 'Category name is required']);
+    }
+    
+    try {
+        $categoryId = app_whatsapp_create_category($user['id'], $name, $description, $color ?: null, $parentId);
+        
+        $category = app_whatsapp_get_category($categoryId);
+        
+        api_success('Category created', [
+            'category' => [
+                'id' => (int) $category['id'],
+                'name' => $category['name'],
+                'description' => $category['description'],
+                'color' => $category['color'],
+                'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
+                'created_at' => $category['created_at']
+            ]
+        ], 201);
+        
+    } catch (Exception $e) {
+        api_error('Failed to create category: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_update_category(): void {
+    api_require_method('PUT');
+    $user = api_require_auth();
+    
+    $categoryId = (int) api_get_query_param('id');
+    $data = api_get_json_input();
+    
+    try {
+        $success = app_whatsapp_update_category($categoryId, $user['id'], $data);
+        
+        if ($success) {
+            $category = app_whatsapp_get_category($categoryId);
+            api_success('Category updated', [
+                'category' => [
+                    'id' => (int) $category['id'],
+                    'name' => $category['name'],
+                    'description' => $category['description'],
+                    'color' => $category['color'],
+                    'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
+                    'sort_order' => (int) $category['sort_order'],
+                    'is_active' => (bool) $category['is_active'],
+                    'updated_at' => $category['updated_at']
+                ]
+            ]);
+        } else {
+            api_error('No changes made to category');
+        }
+        
+    } catch (Exception $e) {
+        api_error('Failed to update category: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_delete_category(): void {
+    api_require_method('DELETE');
+    $user = api_require_auth();
+    
+    $categoryId = (int) api_get_query_param('id');
+    
+    try {
+        $success = app_whatsapp_delete_category($categoryId, $user['id']);
+        
+        if ($success) {
+            api_success('Category deleted');
+        } else {
+            api_error('Failed to delete category');
+        }
+        
+    } catch (Exception $e) {
+        api_error('Failed to delete category: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_get_category_messages(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+    
+    $categoryId = (int) api_get_query_param('id');
+    $limit = min(100, (int) api_get_query_param('limit', 50));
+    $before = api_get_query_param('before') ? (int) api_get_query_param('before') : null;
+    
+    // Verify category belongs to user
+    $category = app_whatsapp_get_category($categoryId);
+    if (!$category || $category['user_id'] !== $user['id']) {
+        api_forbidden('Category not found or access denied');
+    }
+    
+    $messages = app_whatsapp_get_messages_by_category($user['id'], $categoryId, $limit, $before);
+    
+    api_success('Category messages retrieved', [
+        'messages' => array_map(function($message) {
+            return [
+                'id' => (int) $message['id'],
+                'session_id' => (int) $message['session_id'],
+                'group_id' => $message['group_id'],
+                'group_name' => $message['group_name'],
+                'session_name' => $message['session_name'],
+                'message_id' => $message['message_id'],
+                'sender_number' => $message['sender_number'],
+                'sender_name' => $message['sender_name'],
+                'message_type' => $message['message_type'],
+                'content' => $message['content'],
+                'media_url' => $message['media_url'],
+                'media_caption' => $message['media_caption'],
+                'category_id' => $message['category_id'] ? (int) $message['category_id'] : null,
+                'is_from_me' => (bool) $message['is_from_me'],
+                'timestamp' => (int) $message['timestamp'],
+                'created_at' => $message['created_at']
+            ];
+        }, $messages)
+    ]);
+}
+
+function api_whatsapp_get_category_groups(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+    
+    $categoryId = (int) api_get_query_param('id');
+    
+    // Verify category belongs to user
+    $category = app_whatsapp_get_category($categoryId);
+    if (!$category || $category['user_id'] !== $user['id']) {
+        api_forbidden('Category not found or access denied');
+    }
+    
+    $groups = app_whatsapp_get_groups_by_category($user['id'], $categoryId);
+    
+    api_success('Category groups retrieved', [
+        'groups' => array_map(function($group) {
+            return [
+                'id' => (int) $group['id'],
+                'session_id' => (int) $group['session_id'],
+                'group_id' => $group['group_id'],
+                'name' => $group['name'],
+                'description' => $group['description'],
+                'participant_count' => (int) $group['participant_count'],
+                'category_id' => $group['category_id'] ? (int) $group['category_id'] : null,
+                'is_archived' => (bool) $group['is_archived'],
+                'last_message_timestamp' => $group['last_message_timestamp'] ? (int) $group['last_message_timestamp'] : null,
+                'last_message_preview' => $group['last_message_preview'],
+                'unread_count' => (int) $group['unread_count'],
+                'whatsapp_session_name' => $group['whatsapp_session_name'],
+                'created_at' => $group['created_at'],
+                'updated_at' => $group['updated_at']
+            ];
+        }, $groups)
+    ]);
+}
+
+function api_whatsapp_assign_message_category(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+    
+    $messageId = (int) api_get_query_param('id');
+    $data = api_get_json_input();
+    
+    $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
+    
+    try {
+        $success = app_whatsapp_assign_message_category($messageId, $categoryId, $user['id']);
+        
+        if ($success) {
+            api_success('Message category assigned');
+        } else {
+            api_error('Failed to assign message category');
+        }
+        
+    } catch (Exception $e) {
+        api_error('Failed to assign message category: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_assign_group_category(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+    
+    $groupId = (int) api_get_query_param('id');
+    $data = api_get_json_input();
+    
+    $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
+    
+    try {
+        $success = app_whatsapp_assign_group_category($groupId, $categoryId, $user['id']);
+        
+        if ($success) {
+            api_success('Group category assigned');
+        } else {
+            api_error('Failed to assign group category');
+        }
+        
+    } catch (Exception $e) {
+        api_error('Failed to assign group category: ' . $e->getMessage());
+    }
+}
+function api_require_whatsapp_access(): array {
+    $user = api_require_auth();
+    
+    if ($user['role'] === 'users') {
+        api_error('Access denied. WhatsApp features are only available for administrators.', 403);
+    }
+    
+    return $user;
 }

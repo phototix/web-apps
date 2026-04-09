@@ -70,3 +70,4 @@ require_once __DIR__ . '/whatsapp/sessions.php';
 require_once __DIR__ . '/whatsapp/groups.php';
 require_once __DIR__ . '/whatsapp/messages.php';
 require_once __DIR__ . '/whatsapp/webhooks.php';
+require_once __DIR__ . '/whatsapp/categories.php';

@@ -5,6 +5,7 @@ declare(strict_types=1);
 function app_render_dashboard_sidebar(): void
 {
     $currentPath = $_SERVER['REQUEST_URI'] ?? '/welcome';
+    $user = app_current_user();
     ?>
     <aside class="dashboard-sidebar">
         <div class="sidebar-sticky pt-3">
@@ -20,13 +21,7 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#">
-                            <i class="fas fa-book"></i>
-                            <span>Library</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">
+                        <a class="nav-link <?= strpos($currentPath, '/cases') !== false ? 'active' : '' ?>" href="/cases">
                             <i class="fas fa-folder"></i>
                             <span>Cases</span>
                         </a>
@@ -34,15 +29,25 @@ function app_render_dashboard_sidebar(): void
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/groups') !== false ? 'active' : '' ?>" href="/groups">
                             <i class="fas fa-users"></i>
-                            <span>Groups</span>
+                            <span>Groups Chats</span>
                         </a>
                     </li>
+                    <?php if ($user && $user['role'] !== 'users'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/whatsapp-connect') !== false ? 'active' : '' ?>" href="/whatsapp-connect">
                             <i class="fab fa-whatsapp"></i>
                             <span>WhatsApp Connect</span>
                         </a>
                     </li>
+                    <?php endif; ?>
+                    <?php if ($user && $user['role'] === 'superadmin'): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/admin/users') !== false ? 'active' : '' ?>" href="/admin/users">
+                            <i class="fas fa-user-cog"></i>
+                            <span>Users</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 </ul>
             
             <div class="mt-auto p-3">

@@ -53,6 +53,11 @@ function app_render_dashboard_css(): void
             flex-direction: column;
         }
         
+        /* Fix for chat-box height issue - remove bottom padding from dashboard .py-4 */
+        .dashboard-content .py-4 {
+            padding-bottom: 0 !important;
+        }
+        
         .dashboard-header {
             position: sticky;
             top: 0;

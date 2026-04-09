@@ -232,327 +232,66 @@ function app_page_welcome(): void
     </div>
     
     <div class="row">
-    </div>
-    <?php
-    
-    // End dashboard layout
-    app_render_dashboard_end();
-    
-    app_render_footer();
-}
-
-function app_page_settings(): void
-{
-    app_require_auth();
-
-    $user = app_current_user();
-    
-    // Get current page from query parameter
-    $currentPage = $_GET['page'] ?? 'account';
-    $validPages = ['account', 'category'];
-    
-    if (!in_array($currentPage, $validPages)) {
-        $currentPage = 'account';
-    }
-
-    app_render_head('Settings');
-
-    // Start dashboard layout
-    app_render_dashboard_start($user);
-    
-    // Render flash messages
-    app_render_flash();
-    
-    // Settings content with sidebar layout
-    ?>
-    <div class="row">
-        <!-- Left Sidebar for Settings Navigation -->
-        <div class="col-lg-3 col-md-4">
-            <div class="card mb-4">
-                <div class="card-header bg-white border-bottom-0">
-                    <h5 class="mb-0">Settings</h5>
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
                 </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        <a href="/settings?page=account" 
-                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'account' ? 'active' : '' ?>">
-                            <i class="fas fa-user me-3"></i>
-                            <div>
-                                <div class="fw-medium">Account</div>
-                                <small class="text-muted">Profile and preferences</small>
-                            </div>
-                        </a>
-                        <a href="/settings?page=category" 
-                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'category' ? 'active' : '' ?>">
-                            <i class="fas fa-tags me-3"></i>
-                            <div>
-                                <div class="fw-medium">Category Management</div>
-                                <small class="text-muted">Organize messages and groups</small>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-                <div class="card-footer bg-white border-top-0 pt-0">
-                    <div class="text-muted small">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Manage your account settings
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-primary btn-block">
+                                <i class="fas fa-book me-2"></i>Access Library
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-success btn-block">
+                                <i class="fas fa-folder me-2"></i>View Cases
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="#" class="btn btn-outline-info btn-block">
+                                <i class="fas fa-comments me-2"></i>Open Chats
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <a href="/logout" class="btn btn-outline-danger btn-block">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Right Content Area -->
-        <div class="col-lg-9 col-md-8">
-            <div class="card mb-4">
-                <div class="card-header bg-white border-bottom-0">
-                    <h4 class="mb-0">
-                        <?= $currentPage === 'account' ? 'Account Settings' : '' ?>
-                    </h4>
-                    <p class="text-muted mb-0">
-                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : '' ?>
-                    </p>
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
                 </div>
                 <div class="card-body">
-                    <?php if ($currentPage === 'account'): ?>
-                        <!-- Account Settings Content -->
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card mb-3">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">Account Information</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <label class="form-label">Name</label>
-                                            <input type="text" class="form-control" value="<?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Email</label>
-                                            <input type="email" class="form-control" value="<?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Role</label>
-                                            <input type="text" class="form-control" value="<?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card mb-3">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">Preferences</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <label class="form-label">Theme</label>
-                                            <select class="form-select" disabled>
-                                                <option><?= htmlspecialchars(app_theme(), ENT_QUOTES, 'UTF-8') ?></option>
-                                            </select>
-                                            <small class="text-muted">Theme can be changed in .env file</small>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Notifications</label>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="notifications" checked disabled>
-                                                <label class="form-check-label" for="notifications">
-                                                    Receive email notifications
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-sign-in-alt text-success me-3"></i>
+                            <div>
+                                <div class="small text-muted">Today, 10:30 AM</div>
+                                <div>You logged in successfully</div>
                             </div>
                         </div>
-                    <?php else: ?>
-                        <!-- Category Management Content -->
-                        <div class="category-management">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <div>
-                                    <h5 class="mb-0">Manage Categories</h5>
-                                    <p class="text-muted mb-0">Create and organize hierarchical categories for messages and groups</p>
-                                </div>
-                                <button type="button" class="btn btn-primary" id="addCategoryBtn">
-                                    <i class="fas fa-plus me-2"></i>Add Category
-                                </button>
-                            </div>
-                            
-                            <div id="category-management-container">
-                                <!-- JavaScript will load content here -->
-                                <div class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                    <p class="mt-2 text-muted">Loading categories...</p>
-                                </div>
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-user-check text-info me-3"></i>
+                            <div>
+                                <div class="small text-muted">Yesterday, 3:45 PM</div>
+                                <div>Profile information updated</div>
                             </div>
                         </div>
-                        
-                        <!-- Category Modal (Create/Edit) -->
-                        <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" inert>
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="categoryModalLabel">Add Category</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <form id="categoryForm">
-                                            <input type="hidden" id="categoryId" name="id" value="">
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryName" class="form-label">Category Name <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control" id="categoryName" name="name" required maxlength="255">
-                                                <div class="invalid-feedback">Please enter a category name.</div>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryDescription" class="form-label">Description</label>
-                                                <textarea class="form-control" id="categoryDescription" name="description" rows="3" maxlength="1000"></textarea>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryColor" class="form-label">Color</label>
-                                                <div class="input-group">
-                                                    <input type="color" class="form-control form-control-color" id="categoryColor" name="color" value="#6c757d" title="Choose category color">
-                                                    <input type="text" class="form-control" id="categoryColorText" value="#6c757d" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
-                                                </div>
-                                                <small class="text-muted">Click the color box or enter HEX code (e.g., #6c757d)</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryParent" class="form-label">Parent Category</label>
-                                                <select class="form-select" id="categoryParent" name="parent_id">
-                                                    <option value="">None (Root Category)</option>
-                                                    <!-- Parent categories will be loaded via JavaScript -->
-                                                </select>
-                                                <small class="text-muted">Select a parent category to create a sub-category</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categorySortOrder" class="form-label">Sort Order</label>
-                                                <input type="number" class="form-control" id="categorySortOrder" name="sort_order" value="0" min="0">
-                                                <small class="text-muted">Lower numbers appear first</small>
-                                            </div>
-                                        </form>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
-                                    </div>
-                                </div>
+                        <div class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-bell text-warning me-3"></i>
+                            <div>
+                                <div class="small text-muted">April 5, 2026</div>
+                                <div>New notification received</div>
                             </div>
                         </div>
-                        
-                        <!-- Include Category Management JavaScript -->
-                        <script src="/assets/js/category-management.js"></script>
-                        
-                        <style>
-                        .color-badge {
-                            display: inline-block;
-                            width: 16px;
-                            height: 16px;
-                            border-radius: 3px;
-                            border: 1px solid #dee2e6;
-                        }
-                        
-                        .category-item {
-                            transition: background-color 0.2s;
-                        }
-                        
-                        .category-item:hover {
-                            background-color: #f8f9fa;
-                        }
-                        
-                        .form-control-color {
-                            height: 38px;
-                            padding: 3px;
-                        }
-                        
-                        .table tbody tr {
-                            vertical-align: middle;
-                        }
-                        
-                        .table tbody tr:hover {
-                            background-color: rgba(0, 0, 0, 0.02);
-                        }
-                        
-                        /* Sidebar active state */
-                        .list-group-item.active {
-                            background-color: #0d6efd;
-                            border-color: #0d6efd;
-                            color: white;
-                        }
-                        
-                        .list-group-item.active .text-muted {
-                            color: rgba(255, 255, 255, 0.8) !important;
-                        }
-                        
-                        .list-group-item.active i {
-                            color: white;
-                        }
-                        </style>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php
-    
-    // End dashboard layout
-    app_render_dashboard_end();
-    
-    app_render_footer();
-}
-
-function app_page_cases(): void
-{
-    app_require_auth();
-
-    $user = app_current_user();
-
-    app_render_head('Cases');
-
-    // Start dashboard layout
-    app_render_dashboard_start($user);
-    
-    // Render flash messages
-    app_render_flash();
-    
-    // Cases content
-    ?>
-    <div class="row">
-        <div class="col-12">
-            <div class="card mb-4">
-                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="mb-0">Cases</h4>
-                        <p class="text-muted mb-0">Manage and track your cases.</p>
-                    </div>
-                    <button class="btn btn-primary" disabled>
-                        <i class="fas fa-plus me-2"></i>New Case
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Case ID</th>
-                                    <th>Title</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-5">
-                                        <i class="fas fa-folder-open fa-3x mb-3"></i>
-                                        <p>No cases found. Cases functionality coming soon.</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>

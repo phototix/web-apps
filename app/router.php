@@ -35,6 +35,8 @@ function app_dispatch_request(): void
             '/logout' => 'app_page_logout',
             '/whatsapp-connect' => 'app_page_whatsapp_connect',
             '/groups' => 'app_page_groups',
+            '/cases' => 'app_page_cases',
+            '/settings' => 'app_page_settings',
             '/admin/users' => 'app_page_admin_users',
         ],
         'POST' => [
@@ -75,6 +77,11 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/groups/{id}/messages' => 'api_whatsapp_get_group_messages',
             '/api/realtime/updates' => 'api_realtime_updates',
             '/api/whatsapp/incoming/verify' => 'api_whatsapp_incoming_verify',
+            '/api/whatsapp/categories' => 'api_whatsapp_get_categories',
+            '/api/whatsapp/categories/tree' => 'api_whatsapp_get_category_tree',
+            '/api/whatsapp/categories/{id}' => 'api_whatsapp_get_category',
+            '/api/whatsapp/categories/{id}/messages' => 'api_whatsapp_get_category_messages',
+            '/api/whatsapp/categories/{id}/groups' => 'api_whatsapp_get_category_groups',
         ],
         'POST' => [
             '/api/auth/login' => 'api_auth_login',
@@ -88,9 +95,16 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/realtime/mark-read' => 'api_mark_update_read',
             '/api/whatsapp/incoming/message' => 'api_whatsapp_incoming_message',
             '/api/whatsapp/incoming/messages/batch' => 'api_whatsapp_incoming_messages_batch',
+            '/api/whatsapp/categories' => 'api_whatsapp_create_category',
+            '/api/whatsapp/messages/{id}/category' => 'api_whatsapp_assign_message_category',
+            '/api/whatsapp/groups/{id}/category' => 'api_whatsapp_assign_group_category',
+        ],
+        'PUT' => [
+            '/api/whatsapp/categories/{id}' => 'api_whatsapp_update_category',
         ],
         'DELETE' => [
             '/api/whatsapp/sessions/{id}' => 'api_whatsapp_delete_session',
+            '/api/whatsapp/categories/{id}' => 'api_whatsapp_delete_category',
         ],
     ];
 

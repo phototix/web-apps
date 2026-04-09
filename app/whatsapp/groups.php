@@ -64,9 +64,13 @@ function app_whatsapp_sync_groups(int $sessionId): array {
 function app_whatsapp_get_user_groups(int $userId): array {
     $pdo = app_db();
     $stmt = $pdo->prepare("
-        SELECT wg.*, ws.session_name as whatsapp_session_name 
+        SELECT wg.*, 
+               ws.session_name as whatsapp_session_name,
+               c.name as category_name,
+               c.color as category_color
         FROM whatsapp_groups wg
         JOIN whatsapp_sessions ws ON wg.session_id = ws.id
+        LEFT JOIN categories c ON wg.category_id = c.id
         WHERE ws.user_id = :user_id
         ORDER BY 
             CASE WHEN wg.last_message_timestamp IS NULL THEN 1 ELSE 0 END,
@@ -80,9 +84,14 @@ function app_whatsapp_get_user_groups(int $userId): array {
 function app_whatsapp_get_group(int $groupId): ?array {
     $pdo = app_db();
     $stmt = $pdo->prepare("
-        SELECT wg.*, ws.session_name as whatsapp_session_name, ws.user_id 
+        SELECT wg.*, 
+               ws.session_name as whatsapp_session_name, 
+               ws.user_id,
+               c.name as category_name,
+               c.color as category_color
         FROM whatsapp_groups wg
         JOIN whatsapp_sessions ws ON wg.session_id = ws.id
+        LEFT JOIN categories c ON wg.category_id = c.id
         WHERE wg.id = :id
     ");
     $stmt->execute(['id' => $groupId]);

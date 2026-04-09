@@ -26,7 +26,14 @@ function app_theme(): string
 
 function app_asset(string $path): string
 {
-    return '/assets/' . ltrim($path, '/');
+    $assetUrl = '/assets/' . ltrim($path, '/');
+    
+    // Add cache busting version for CSS and JS files
+    if (preg_match('/\.(css|js)$/i', $path)) {
+        $assetUrl .= '?v=' . app_asset_version();
+    }
+    
+    return $assetUrl;
 }
 
 function app_asset_version(): string
@@ -34,7 +41,7 @@ function app_asset_version(): string
     static $version = null;
     
     if ($version === null) {
-        $version = '20260409160524'; // Default version, updated by bump_version.php
+        $version = '20260409200519'; // Default version, updated by bump_version.php
     }
     
     return $version;
@@ -320,7 +327,7 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/count-to.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <!-- Category Management -->
-    <script src="/assets/js/category-management.js"></script>
+    <script src="<?= htmlspecialchars(app_asset('js/category-management.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
         <?php
 
         return;
@@ -342,7 +349,7 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/validnavs.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <!-- Category Management -->
-    <script src="/assets/js/category-management.js"></script>
+    <script src="<?= htmlspecialchars(app_asset('js/category-management.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
         <?php
 
         return;
@@ -368,7 +375,7 @@ function app_render_scripts(): void
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/validnavs.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script src="<?= htmlspecialchars(app_theme_asset('assets/js/main.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <!-- Category Management -->
-    <script src="/assets/js/category-management.js"></script>
+    <script src="<?= htmlspecialchars(app_asset('js/category-management.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php
 }
 

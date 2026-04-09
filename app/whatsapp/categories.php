@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // WhatsApp Categories Management
 
-function app_whatsapp_create_category(int $userId, string $name, ?string $description = null, ?string $color = null, ?int $parentId = null): int {
+function app_whatsapp_create_category(int $userId, string $name, ?string $description = null, ?string $keywords = null, ?string $prompt = null, ?string $color = null, ?int $parentId = null): int {
     $pdo = app_db();
     
     // Validate parent category belongs to same user
@@ -17,14 +17,16 @@ function app_whatsapp_create_category(int $userId, string $name, ?string $descri
     
     $stmt = $pdo->prepare("
         INSERT INTO categories 
-        (user_id, name, description, color, parent_id, created_at)
-        VALUES (:user_id, :name, :description, :color, :parent_id, NOW())
+        (user_id, name, description, keywords, prompt, color, parent_id, created_at)
+        VALUES (:user_id, :name, :description, :keywords, :prompt, :color, :parent_id, NOW())
     ");
     
     $stmt->execute([
         'user_id' => $userId,
         'name' => $name,
         'description' => $description,
+        'keywords' => $keywords,
+        'prompt' => $prompt,
         'color' => $color ?? '#6c757d',
         'parent_id' => $parentId
     ]);
@@ -69,6 +71,16 @@ function app_whatsapp_update_category(int $categoryId, int $userId, array $updat
     if (isset($updates['description'])) {
         $setClauses[] = 'description = :description';
         $params['description'] = $updates['description'];
+    }
+    
+    if (isset($updates['keywords'])) {
+        $setClauses[] = 'keywords = :keywords';
+        $params['keywords'] = $updates['keywords'];
+    }
+    
+    if (isset($updates['prompt'])) {
+        $setClauses[] = 'prompt = :prompt';
+        $params['prompt'] = $updates['prompt'];
     }
     
     if (isset($updates['color'])) {

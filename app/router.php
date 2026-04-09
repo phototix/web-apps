@@ -120,7 +120,7 @@ function app_dispatch_api_request(string $method, string $path): void
                 
                 if (preg_match('/^' . $pattern . '$/', $path, $matches)) {
                     $handler = $routeHandler;
-                    $_GET['id'] = $matches[1] ?? null;
+                    $_GET['id'] = urldecode($matches[1] ?? '');
                     break;
                 }
             }

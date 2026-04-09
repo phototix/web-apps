@@ -684,7 +684,7 @@ function app_page_groups(): void {
     </div>
     
     <!-- Real-time Script -->
-    <script src="/js/realtime.js"></script>
+    <script src="<?= htmlspecialchars(app_asset('js/realtime.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Session filter functionality

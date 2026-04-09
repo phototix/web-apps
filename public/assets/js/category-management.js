@@ -37,16 +37,15 @@ class CategoryManager {
         // Initialize modal if it exists
         const modalElement = document.getElementById('categoryModal');
         if (modalElement) {
-            this.modal = new bootstrap.Modal(modalElement);
-            
-            // Add event listeners for proper ARIA handling
-            modalElement.addEventListener('shown.bs.modal', () => {
-                modalElement.removeAttribute('inert');
-            });
-            
-            modalElement.addEventListener('hidden.bs.modal', () => {
-                modalElement.setAttribute('inert', '');
-            });
+            try {
+                this.modal = new bootstrap.Modal(modalElement);
+                console.log('Modal initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize modal:', error);
+                // Don't fail completely, we'll try to initialize later if needed
+            }
+        } else {
+            console.warn('Modal element not found during initialization');
         }
     }
 
@@ -96,7 +95,25 @@ class CategoryManager {
         if (!container) return;
 
         try {
-            const response = await fetch('/api/whatsapp/categories/tree');
+            // Show loading state
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading categories...</p>
+                </div>
+            `;
+            
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            const response = await fetch('/api/whatsapp/categories/tree', {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
             const data = await response.json();
             
             if (data.success) {
@@ -104,10 +121,21 @@ class CategoryManager {
                 this.renderCategories();
             } else {
                 this.showError('Failed to load categories: ' + (data.message || 'Unknown error'));
+                // Show empty state on error
+                container.innerHTML = this.getEmptyStateHTML();
             }
         } catch (error) {
             console.error('Error loading categories:', error);
-            this.showError('Failed to load categories. Please try again.');
+            if (error.name === 'AbortError') {
+                this.showError('Request timed out. Please check your connection and try again.');
+            } else {
+                this.showError('Failed to load categories. Please try again.');
+            }
+            // Show empty state on error
+            const container = document.getElementById('category-management-container');
+            if (container) {
+                container.innerHTML = this.getEmptyStateHTML();
+            }
         }
     }
 
@@ -129,8 +157,22 @@ class CategoryManager {
         this.addTableEventListeners();
     }
 
-    flattenCategoryTree(tree, level = 0, result = []) {
+    flattenCategoryTree(tree, level = 0, result = [], visited = new Set()) {
+        // Safety check: prevent infinite recursion
+        if (level > 20) {
+            console.warn('Maximum recursion depth reached in category tree');
+            return result;
+        }
+        
         tree.forEach(category => {
+            // Check for circular references
+            if (visited.has(category.id)) {
+                console.warn(`Circular reference detected in category tree: category ${category.id} already visited`);
+                return;
+            }
+            
+            visited.add(category.id);
+            
             // Add level for indentation
             const categoryCopy = { ...category };
             categoryCopy.level = level;
@@ -138,8 +180,10 @@ class CategoryManager {
             
             // Recursively flatten subcategories
             if (categoryCopy.subcategories && categoryCopy.subcategories.length > 0) {
-                this.flattenCategoryTree(categoryCopy.subcategories, level + 1, result);
+                this.flattenCategoryTree(categoryCopy.subcategories, level + 1, result, visited);
             }
+            
+            visited.delete(category.id);
         });
         return result;
     }
@@ -197,6 +241,9 @@ class CategoryManager {
             const subcategoryBadge = category.subcategory_count > 0 ?
                 `<span class="badge bg-warning ms-1">${category.subcategory_count} sub</span>` : '';
             
+            // Format trigger content
+            const triggerContent = this.formatTriggerContent(category.keywords, category.prompt);
+            
             rowsHTML += `
                 <tr data-category-id="${category.id}">
                     <td>
@@ -208,14 +255,8 @@ class CategoryManager {
                         </div>
                     </td>
                     <td>${this.escapeHtml(category.description || '-')}</td>
+                    <td>${triggerContent}</td>
                     <td>${parentChain}</td>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <div class="color-badge me-2" style="background-color: ${category.color || '#6c757d'}; width: 16px; height: 16px; border-radius: 3px;"></div>
-                            <small>${category.color || '#6c757d'}</small>
-                        </div>
-                    </td>
-                    <td>${usageBadge}</td>
                     <td class="text-end">
                         <button class="btn btn-sm btn-outline-primary me-1 edit-btn" title="Edit">
                             <i class="fas fa-edit"></i>
@@ -233,12 +274,11 @@ class CategoryManager {
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th width="30%">Name</th>
-                            <th width="25%">Description</th>
+                            <th width="20%">Name</th>
+                            <th width="20%">Description</th>
+                            <th width="25%">Trigger</th>
                             <th width="15%">Parent Category</th>
-                            <th width="10%">Color</th>
-                            <th width="10%">Usage</th>
-                            <th width="10%" class="text-end">Actions</th>
+                            <th width="20%" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -276,39 +316,54 @@ class CategoryManager {
     }
 
     async openModal(categoryId = null) {
-        this.currentCategoryId = categoryId;
-        
-        // Reset form
-        this.resetForm();
-        
-        // Set modal title
-        const modalTitle = document.getElementById('categoryModalLabel');
-        if (modalTitle) {
-            modalTitle.textContent = categoryId ? 'Edit Category' : 'Add Category';
-        }
-        
-        // Set save button text
-        const saveBtn = document.getElementById('saveCategoryBtn');
-        if (saveBtn) {
-            saveBtn.textContent = categoryId ? 'Update Category' : 'Save Category';
-        }
-        
-        // Ensure categories are loaded
-        if (this.categories.length === 0) {
-            await this.loadCategories();
-        }
-        
-        // If editing, load category data
-        if (categoryId) {
-            await this.loadCategoryForEdit(categoryId);
-        } else {
-            // For new category, populate parent dropdown
-            await this.populateParentDropdown();
-        }
-        
-        // Show modal
-        if (this.modal) {
-            this.modal.show();
+        try {
+            this.currentCategoryId = categoryId;
+            
+            // Reset form
+            this.resetForm();
+            
+            // Set modal title
+            const modalTitle = document.getElementById('categoryModalLabel');
+            if (modalTitle) {
+                modalTitle.textContent = categoryId ? 'Edit Category' : 'Add Category';
+            }
+            
+            // Set save button text
+            const saveBtn = document.getElementById('saveCategoryBtn');
+            if (saveBtn) {
+                saveBtn.textContent = categoryId ? 'Update Category' : 'Save Category';
+            }
+            
+            // Ensure categories are loaded
+            if (this.categories.length === 0) {
+                await this.loadCategories();
+            }
+            
+            // If editing, load category data
+            if (categoryId) {
+                await this.loadCategoryForEdit(categoryId);
+            } else {
+                // For new category, populate parent dropdown
+                await this.populateParentDropdown();
+            }
+            
+            // Show modal
+            if (this.modal) {
+                this.modal.show();
+            } else {
+                console.error('Modal not initialized');
+                // Try to initialize modal if it exists
+                const modalElement = document.getElementById('categoryModal');
+                if (modalElement) {
+                    this.modal = new bootstrap.Modal(modalElement);
+                    this.modal.show();
+                } else {
+                    this.showError('Modal element not found');
+                }
+            }
+        } catch (error) {
+            console.error('Error opening modal:', error);
+            this.showError('Failed to open category modal. Please try again.');
         }
     }
 
@@ -320,6 +375,8 @@ class CategoryManager {
             document.getElementById('categoryColor').value = '#6c757d';
             document.getElementById('categoryColorText').value = '#6c757d';
             document.getElementById('categorySortOrder').value = '0';
+            document.getElementById('categoryKeywords').value = '';
+            document.getElementById('categoryPrompt').value = '';
             
             // Clear validation
             document.getElementById('categoryName').classList.remove('is-invalid');
@@ -328,7 +385,15 @@ class CategoryManager {
 
     async loadCategoryForEdit(categoryId) {
         try {
-            const response = await fetch(`/api/whatsapp/categories/${categoryId}`);
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            const response = await fetch(`/api/whatsapp/categories/${categoryId}?_=${Date.now()}`, {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
             const data = await response.json();
             
             if (data.success && data.data.category) {
@@ -338,6 +403,8 @@ class CategoryManager {
                 document.getElementById('categoryId').value = category.id;
                 document.getElementById('categoryName').value = category.name || '';
                 document.getElementById('categoryDescription').value = category.description || '';
+                document.getElementById('categoryKeywords').value = category.keywords || '';
+                document.getElementById('categoryPrompt').value = category.prompt || '';
                 document.getElementById('categoryColor').value = category.color || '#6c757d';
                 document.getElementById('categoryColorText').value = category.color || '#6c757d';
                 document.getElementById('categorySortOrder').value = category.sort_order || '0';
@@ -355,7 +422,11 @@ class CategoryManager {
             }
         } catch (error) {
             console.error('Error loading category:', error);
-            this.showError('Failed to load category. Please try again.');
+            if (error.name === 'AbortError') {
+                this.showError('Request timed out. Please check your connection and try again.');
+            } else {
+                this.showError('Failed to load category. Please try again.');
+            }
         }
     }
 
@@ -387,12 +458,21 @@ class CategoryManager {
 
     isDescendant(category, parentId, allCategories) {
         let current = category;
-        while (current && current.parent_id) {
+        let depth = 0;
+        const maxDepth = 50; // Safety limit
+        
+        while (current && current.parent_id && depth < maxDepth) {
             if (current.parent_id == parentId) {
                 return true;
             }
             current = allCategories.find(c => c.id == current.parent_id);
+            depth++;
         }
+        
+        if (depth >= maxDepth) {
+            console.warn('Maximum depth reached while checking category hierarchy');
+        }
+        
         return false;
     }
 
@@ -555,6 +635,24 @@ class CategoryManager {
             timer: 3000,
             showConfirmButton: false
         });
+    }
+
+    formatTriggerContent(keywords, prompt) {
+        let content = '';
+        
+        if (keywords && keywords.trim()) {
+            content += `<div class="mb-1"><strong>Keywords:</strong> ${this.escapeHtml(keywords)}</div>`;
+        }
+        
+        if (prompt && prompt.trim()) {
+            content += `<div><strong>Prompt:</strong> ${this.escapeHtml(prompt)}</div>`;
+        }
+        
+        if (!content) {
+            return '-';
+        }
+        
+        return content;
     }
 
     escapeHtml(text) {

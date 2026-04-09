@@ -491,6 +491,7 @@ function api_whatsapp_get_group_messages(): void {
     $groupIdParam = api_get_query_param('id');
     $limit = min(100, (int) api_get_query_param('limit', 50));
     $before = api_get_query_param('before') ? (int) api_get_query_param('before') : null;
+    $categoryId = api_get_query_param('category_id') ? (int) api_get_query_param('category_id') : null;
     
     if (!$groupIdParam) {
         api_validation_error(['id' => 'Group ID is required']);
@@ -527,7 +528,7 @@ function api_whatsapp_get_group_messages(): void {
         api_error('Unable to determine session or group');
     }
     
-    $messages = app_whatsapp_get_group_messages($sessionId, $groupId, $limit, $before);
+    $messages = app_whatsapp_get_group_messages($sessionId, $groupId, $limit, $before, $categoryId);
     
     // Reset unread count when fetching messages
     app_db_reset_group_unread_count($sessionId, $groupId);
@@ -947,6 +948,8 @@ function api_whatsapp_get_category(): void {
             'id' => (int) $category['id'],
             'name' => $category['name'],
             'description' => $category['description'],
+            'keywords' => $category['keywords'],
+            'prompt' => $category['prompt'],
             'color' => $category['color'],
             'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
             'parent_name' => $category['parent_name'],
@@ -969,6 +972,8 @@ function api_whatsapp_create_category(): void {
     
     $name = trim($data['name'] ?? '');
     $description = trim($data['description'] ?? '');
+    $keywords = trim($data['keywords'] ?? '');
+    $prompt = trim($data['prompt'] ?? '');
     $color = trim($data['color'] ?? '');
     $parentId = isset($data['parent_id']) ? (int) $data['parent_id'] : null;
     
@@ -977,7 +982,7 @@ function api_whatsapp_create_category(): void {
     }
     
     try {
-        $categoryId = app_whatsapp_create_category($user['id'], $name, $description, $color ?: null, $parentId);
+        $categoryId = app_whatsapp_create_category($user['id'], $name, $description, $keywords ?: null, $prompt ?: null, $color ?: null, $parentId);
         
         $category = app_whatsapp_get_category($categoryId);
         
@@ -986,6 +991,8 @@ function api_whatsapp_create_category(): void {
                 'id' => (int) $category['id'],
                 'name' => $category['name'],
                 'description' => $category['description'],
+                'keywords' => $category['keywords'],
+                'prompt' => $category['prompt'],
                 'color' => $category['color'],
                 'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
                 'created_at' => $category['created_at']
@@ -1014,6 +1021,8 @@ function api_whatsapp_update_category(): void {
                     'id' => (int) $category['id'],
                     'name' => $category['name'],
                     'description' => $category['description'],
+                    'keywords' => $category['keywords'],
+                    'prompt' => $category['prompt'],
                     'color' => $category['color'],
                     'parent_id' => $category['parent_id'] ? (int) $category['parent_id'] : null,
                     'sort_order' => (int) $category['sort_order'],

@@ -110,7 +110,7 @@ function app_whatsapp_get_group_by_session_and_id(int $sessionId, string $groupI
     return $stmt->fetch() ?: null;
 }
 
-function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $limit = 50, ?int $beforeTimestamp = null): array {
+function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $limit = 50, ?int $beforeTimestamp = null, ?int $categoryId = null): array {
     $pdo = app_db();
     
     $query = "
@@ -125,6 +125,11 @@ function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $l
         $params['before_timestamp'] = $beforeTimestamp;
     }
     
+    if ($categoryId !== null) {
+        $query .= " AND category_id = :category_id";
+        $params['category_id'] = $categoryId;
+    }
+    
     $query .= " ORDER BY timestamp DESC LIMIT :limit";
     
     $stmt = $pdo->prepare($query);
@@ -133,6 +138,9 @@ function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $l
     $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
     if ($beforeTimestamp) {
         $stmt->bindValue('before_timestamp', $beforeTimestamp, PDO::PARAM_INT);
+    }
+    if ($categoryId !== null) {
+        $stmt->bindValue('category_id', $categoryId, PDO::PARAM_INT);
     }
     
     $stmt->execute();

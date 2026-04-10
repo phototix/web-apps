@@ -203,8 +203,8 @@
                 let html = '<div class="message-file-list">';
                 
                 // Separate messages and files
-                const textMessages = messages.filter(m => m.message_type === 'text' || !m.message_type);
-                const files = messages.filter(m => m.message_type && m.message_type !== 'text');
+                const textMessages = messages.filter(m => m.message_type === 'chat' || !m.message_type);
+                const files = messages.filter(m => m.message_type && m.message_type !== 'chat');
                 
                 // Show all items by default
                 const filter = document.querySelector('[data-filter].active')?.getAttribute('data-filter') || 'all';

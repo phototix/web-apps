@@ -62,7 +62,7 @@ X-API-Key: 8cd0de4e14cd240a97209625af4bdeb0
   "sender": "1234567890@s.whatsapp.net",
   "sender_name": "John Doe",
   "content": "Hello everyone!",
-  "message_type": "text",
+  "message_type": "chat",
   "is_from_me": false
 }
 ```
@@ -75,7 +75,7 @@ X-API-Key: 8cd0de4e14cd240a97209625af4bdeb0
   "message_id": "3EB0C6D95A5B8A9392B6",
   "sender": "1234567890@s.whatsapp.net",
   "content": "Hello everyone!",
-  "message_type": "text",
+  "message_type": "chat",
   "is_from_me": false
 }
 ```
@@ -87,12 +87,13 @@ X-API-Key: 8cd0de4e14cd240a97209625af4bdeb0
 - `sender` (required): Sender's WhatsApp ID
 - `sender_name` (optional): Display name of the sender
 - `content` (required for text messages): Message text content
-- `message_type` (required): Type of message - "text", "image", "video", "audio", "document", "sticker"
+- `message_type` (required): Type of message - "chat", "image", "video", "audio", "document", "sticker"
 - `timestamp` (optional): Unix timestamp in milliseconds of when message was sent (default: current time)
 - `is_from_me` (required): Boolean indicating if message was sent by the session owner
 - `quoted_message_id` (optional): ID of quoted message if applicable
 - `media_url` (optional): URL to media file for media messages
 - `media_caption` (optional): Caption for media messages
+- `caption` (optional): Additional caption text for media messages (image, video, document)
 - `media_type` (optional): MIME type for media messages
 - `media_size` (optional): Size of media file in bytes
 
@@ -143,7 +144,7 @@ X-API-Key: 8cd0de4e14cd240a97209625af4bdeb0
       "message_id": "3EB0C6D95A5B8A9392B6",
       "sender": "1234567890@s.whatsapp.net",
       "content": "Hello everyone!",
-      "message_type": "text",
+      "message_type": "chat",
       "is_from_me": false
     },
     {
@@ -152,7 +153,7 @@ X-API-Key: 8cd0de4e14cd240a97209625af4bdeb0
       "message_id": "4FC1D7EA6B6C9B4A283C",
       "sender": "0987654321@s.whatsapp.net",
       "content": "Hi John!",
-      "message_type": "text",
+      "message_type": "chat",
       "is_from_me": false
     }
   ]
@@ -234,7 +235,7 @@ curl -X POST http://127.0.0.1:8000/api/whatsapp/incoming/message \
     "message_id": "3EB0C6D95A5B8A9392B6",
     "sender": "1234567890@s.whatsapp.net",
     "content": "Hello everyone!",
-    "message_type": "text",
+    "message_type": "chat",
     "is_from_me": false
   }'
 ```
@@ -251,7 +252,7 @@ curl -X POST http://127.0.0.1:8000/api/whatsapp/incoming/message \
     "sender": "1234567890@s.whatsapp.net",
     "sender_name": "John Doe",
     "content": "Hello everyone!",
-    "message_type": "text",
+    "message_type": "chat",
     "timestamp": 1775529514000,
     "is_from_me": false,
     "quoted_message_id": "2DA1B5C84A4A7A8281A5",
@@ -275,7 +276,7 @@ curl -X POST http://127.0.0.1:8000/api/whatsapp/incoming/messages/batch \
         "message_id": "3EB0C6D95A5B8A9392B6",
         "sender": "1234567890@s.whatsapp.net",
         "content": "Hello everyone!",
-        "message_type": "text",
+        "message_type": "chat",
         "is_from_me": false
       }
     ]
@@ -326,13 +327,14 @@ CREATE TABLE group_messages (
     sender VARCHAR(255) NOT NULL,
     sender_name VARCHAR(255),
     content TEXT,
-    message_type ENUM('text', 'image', 'video', 'audio', 'document', 'sticker') NOT NULL DEFAULT 'text',
+    message_type ENUM('chat', 'image', 'video', 'audio', 'document', 'sticker') NOT NULL DEFAULT 'chat',
     timestamp BIGINT NOT NULL,
     is_from_me BOOLEAN NOT NULL DEFAULT FALSE,
     has_quoted_message BOOLEAN NOT NULL DEFAULT FALSE,
     quoted_message_id VARCHAR(255),
     media_url TEXT,
     media_caption TEXT,
+    caption TEXT,
     media_type VARCHAR(100),
     media_size INT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -51,6 +51,37 @@ function api_method_not_allowed(string $message = 'Method Not Allowed'): void
     api_error($message, [], 405);
 }
 
+function api_handle_exception(Throwable $e): void
+{
+    error_log('API Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    api_error('Internal server error: ' . $e->getMessage(), [], 500);
+}
+
+function api_execute_safely(callable $handler): void
+{
+    // Start output buffering to catch any stray output
+    ob_start();
+    
+    try {
+        $handler();
+    } catch (Throwable $e) {
+        // Clean any output that might have been generated
+        ob_end_clean();
+        api_handle_exception($e);
+        return;
+    }
+    
+    // Get any buffered output
+    $output = ob_get_clean();
+    
+    // If there was any output, log it and return error
+    if ($output && trim($output) !== '') {
+        error_log('Stray output in API response: ' . substr($output, 0, 500));
+        api_error('Internal server error: Unexpected output', [], 500);
+        return;
+    }
+}
+
 function api_validation_error(array $errors, string $message = 'Validation failed'): void
 {
     api_error($message, $errors, 422);
@@ -182,7 +213,7 @@ function api_auth_register(): void
     }
     
     try {
-        $inviteCode = $data['invite_code'] ?? null;
+        $inviteCode = $input['invite_code'] ?? null;
         $result = app_register_user($name, $email, $password, 'admin', $inviteCode);
         
         if ($result['success'] === true) {
@@ -707,8 +738,8 @@ function api_whatsapp_incoming_message(): void
     
     if (empty($messageType)) {
         $errors['message_type'] = 'Message type is required';
-    } elseif (!in_array($messageType, ['text', 'image', 'video', 'audio', 'document', 'sticker'])) {
-        $errors['message_type'] = 'Invalid message type. Must be: text, image, video, audio, document, sticker';
+    } elseif (!in_array($messageType, ['chat', 'image', 'video', 'audio', 'document', 'sticker'])) {
+        $errors['message_type'] = 'Invalid message type. Must be: chat, image, video, audio, document, sticker';
     }
     
     if (!empty($errors)) {
@@ -740,6 +771,7 @@ function api_whatsapp_incoming_message(): void
         'quoted_message_id' => trim($input['quoted_message_id'] ?? ''),
         'media_url' => trim($input['media_url'] ?? ''),
         'media_caption' => trim($input['media_caption'] ?? ''),
+        'caption' => trim($input['caption'] ?? ''),
         'media_type' => trim($input['media_type'] ?? ''),
         'media_size' => (int) ($input['media_size'] ?? 0),
     ];
@@ -817,6 +849,7 @@ function api_whatsapp_incoming_messages_batch(): void
                 'quoted_message_id' => trim($message['quoted_message_id'] ?? ''),
                 'media_url' => trim($message['media_url'] ?? ''),
                 'media_caption' => trim($message['media_caption'] ?? ''),
+                'caption' => trim($message['caption'] ?? ''),
                 'media_type' => trim($message['media_type'] ?? ''),
                 'media_size' => (int) ($message['media_size'] ?? 0),
             ];
@@ -1090,6 +1123,7 @@ function api_whatsapp_get_category_messages(): void {
                 'content' => $message['content'],
                 'media_url' => $message['media_url'],
                 'media_caption' => $message['media_caption'],
+                'caption' => $message['caption'] ?? null,
                 'category_id' => $message['category_id'] ? (int) $message['category_id'] : null,
                 'is_from_me' => (bool) $message['is_from_me'],
                 'timestamp' => (int) $message['timestamp'],
@@ -1184,7 +1218,7 @@ function api_require_whatsapp_access(): array {
     $user = api_require_auth();
     
     if ($user['role'] === 'users') {
-        api_error('Access denied. WhatsApp features are only available for administrators.', 403);
+        api_error('Access denied. WhatsApp features are only available for administrators.', [], 403);
     }
     
     return $user;

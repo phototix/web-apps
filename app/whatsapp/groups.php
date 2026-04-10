@@ -111,40 +111,45 @@ function app_whatsapp_get_group_by_session_and_id(int $sessionId, string $groupI
 }
 
 function app_whatsapp_get_group_messages(int $sessionId, string $groupId, int $limit = 50, ?int $beforeTimestamp = null, ?int $categoryId = null): array {
-    $pdo = app_db();
-    
-    $query = "
-        SELECT * FROM group_messages 
-        WHERE session_id = :session_id AND group_id = :group_id
-    ";
-    
-    $params = ['session_id' => $sessionId, 'group_id' => $groupId];
-    
-    if ($beforeTimestamp) {
-        $query .= " AND timestamp < :before_timestamp";
-        $params['before_timestamp'] = $beforeTimestamp;
+    try {
+        $pdo = app_db();
+        
+        $query = "
+            SELECT * FROM group_messages 
+            WHERE session_id = :session_id AND group_id = :group_id
+        ";
+        
+        $params = ['session_id' => $sessionId, 'group_id' => $groupId];
+        
+        if ($beforeTimestamp) {
+            $query .= " AND timestamp < :before_timestamp";
+            $params['before_timestamp'] = $beforeTimestamp;
+        }
+        
+        if ($categoryId !== null) {
+            $query .= " AND category_id = :category_id";
+            $params['category_id'] = $categoryId;
+        }
+        
+        $query .= " ORDER BY timestamp DESC LIMIT :limit";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->bindValue('session_id', $sessionId, PDO::PARAM_INT);
+        $stmt->bindValue('group_id', $groupId, PDO::PARAM_STR);
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        if ($beforeTimestamp) {
+            $stmt->bindValue('before_timestamp', $beforeTimestamp, PDO::PARAM_INT);
+        }
+        if ($categoryId !== null) {
+            $stmt->bindValue('category_id', $categoryId, PDO::PARAM_INT);
+        }
+        
+        $stmt->execute();
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log('Error fetching group messages: ' . $e->getMessage() . ' for session ' . $sessionId . ', group ' . $groupId);
+        return [];
     }
-    
-    if ($categoryId !== null) {
-        $query .= " AND category_id = :category_id";
-        $params['category_id'] = $categoryId;
-    }
-    
-    $query .= " ORDER BY timestamp DESC LIMIT :limit";
-    
-    $stmt = $pdo->prepare($query);
-    $stmt->bindValue('session_id', $sessionId, PDO::PARAM_INT);
-    $stmt->bindValue('group_id', $groupId, PDO::PARAM_STR);
-    $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
-    if ($beforeTimestamp) {
-        $stmt->bindValue('before_timestamp', $beforeTimestamp, PDO::PARAM_INT);
-    }
-    if ($categoryId !== null) {
-        $stmt->bindValue('category_id', $categoryId, PDO::PARAM_INT);
-    }
-    
-    $stmt->execute();
-    return $stmt->fetchAll();
 }
 
 function app_whatsapp_create_group(int $sessionId, string $name, array $participants = []): array {

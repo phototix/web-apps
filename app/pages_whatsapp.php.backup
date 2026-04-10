@@ -885,18 +885,31 @@ function app_page_groups(): void {
                                 tempMsg.classList.remove('temp-message');
                                 tempMsg.querySelector('.fa-clock')?.remove();
                             }
-                            // Release grey-out state
-                            setMessageSendingState(false);
                         }
                     });
                     
                     realtime.startPolling();
-               } else {
-                console.warn('RealtimeClient not available. Real-time updates disabled.');
+              } else {
+                  console.warn('RealtimeClient not available. Real-time updates disabled.');
               }
-             }
+            }
+               });
+              
+              // Handle message sent confirmation
+              realtime.on('message_sent', function(data) {
+                  console.log('Message sent confirmation:', data);
+                  if (data.group_id == selectedGroupId) {
+                      // Message was successfully sent to server
+                      // We'll wait for the actual message to appear via new_message event
+                      // But we can release grey-out state if it's still active
+                      setMessageSendingState(false);
+                  }
+              });
              
-             // Message form submission
+             // Start polling
+             realtime.startPolling();
+            
+            // Message form submission
             document.getElementById('messageForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const input = document.getElementById('messageInput');

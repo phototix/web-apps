@@ -30,7 +30,7 @@ curl -s -X POST "$BASE_URL/api/whatsapp/incoming/message" \
     \"message_id\": \"$MESSAGE_ID\",
     \"sender\": \"1234567890@s.whatsapp.net\",
     \"content\": \"Hello from API test!\",
-    \"message_type\": \"text\",
+    "message_type": "chat",
     \"is_from_me\": false
   }" | jq .
 
@@ -71,7 +71,7 @@ curl -s -X POST "$BASE_URL/api/whatsapp/incoming/messages/batch" \
         \"message_id\": \"BATCH_1_$(date +%s)\",
         \"sender\": \"1111111111@s.whatsapp.net\",
         \"content\": \"First batch message\",
-        \"message_type\": \"text\",
+        "message_type": "chat",
         \"is_from_me\": false
       },
       {
@@ -80,7 +80,7 @@ curl -s -X POST "$BASE_URL/api/whatsapp/incoming/messages/batch" \
         \"message_id\": \"BATCH_2_$(date +%s)\",
         \"sender\": \"2222222222@s.whatsapp.net\",
         \"content\": \"Second batch message\",
-        \"message_type\": \"text\",
+        "message_type": "chat",
         \"is_from_me\": false
       }
     ]
@@ -109,7 +109,7 @@ curl -s -X POST "$BASE_URL/api/whatsapp/incoming/message" \
     \"message_id\": \"ERROR_TEST_2\",
     \"sender\": \"1234567890@s.whatsapp.net\",
     \"content\": \"Test message\",
-    \"message_type\": \"text\",
+    "message_type": "chat",
     \"is_from_me\": false
   }" | jq .
 
@@ -123,7 +123,7 @@ curl -s -X POST "$BASE_URL/api/whatsapp/incoming/message" \
     \"message_id\": \"ERROR_TEST_3\",
     \"sender\": \"1234567890@s.whatsapp.net\",
     \"content\": \"Test message\",
-    \"message_type\": \"text\",
+    "message_type": "chat",
     \"is_from_me\": false
   }" | jq .
 

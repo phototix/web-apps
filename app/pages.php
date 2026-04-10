@@ -85,6 +85,7 @@ function app_page_register(): void
         $email = (string) ($_POST['email'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
         $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+        $inviteCode = (string) ($_POST['invite_code'] ?? '');
 
         if ($password !== $confirmPassword) {
             app_flash('error', 'Passwords do not match.');
@@ -92,7 +93,9 @@ function app_page_register(): void
         }
 
         try {
-            $result = app_register_user($name, $email, $password);
+            // Pass invite code to registration function
+            // The function will handle role assignment based on invite code
+            $result = app_register_user($name, $email, $password, 'admin', $inviteCode);
         } catch (Throwable $exception) {
             app_flash('error', 'Database connection failed. Check your .env settings and import database/schema.sql first.');
             app_redirect('/register');
@@ -1686,7 +1689,18 @@ function app_page_cases(): void
             
             // Load category tree via API
             fetch('/api/whatsapp/categories/tree')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        return response.text().then(text => {
+                            throw new Error(`Expected JSON but got: ${text.substring(0, 100)}`);
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success && data.data.categories) {
                         renderCategoryTree(data.data.categories);
@@ -1694,7 +1708,7 @@ function app_page_cases(): void
                         categoryTree.innerHTML = `
                             <div class="text-center text-muted py-4">
                                 <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
-                                <p>Failed to load categories</p>
+                                <p>Failed to load categories: ${data.message || 'Unknown error'}</p>
                                 <button class="btn btn-sm btn-outline-primary" onclick="loadFolderContent('${groupId}')">
                                     <i class="fas fa-redo me-1"></i> Retry
                                 </button>
@@ -1707,7 +1721,7 @@ function app_page_cases(): void
                     categoryTree.innerHTML = `
                         <div class="text-center text-muted py-4">
                             <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
-                            <p>Error loading categories</p>
+                            <p>Error loading categories: ${error.message}</p>
                             <button class="btn btn-sm btn-outline-primary" onclick="loadFolderContent('${groupId}')">
                                 <i class="fas fa-redo me-1"></i> Retry
                             </button>
@@ -1736,7 +1750,18 @@ function app_page_cases(): void
             
             // Load messages and files for this group via API
             fetch(`/api/whatsapp/groups/${encodeURIComponent(groupId)}/messages?session_id=${encodeURIComponent(sessionId)}&limit=50`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        return response.text().then(text => {
+                            throw new Error(`Expected JSON but got: ${text.substring(0, 100)}`);
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success && data.data.messages) {
                         renderMessagesAndFiles(data.data.messages);
@@ -1744,7 +1769,7 @@ function app_page_cases(): void
                         messagesList.innerHTML = `
                             <div class="text-center text-muted py-4">
                                 <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
-                                <p>Failed to load messages</p>
+                                <p>Failed to load messages: ${data.message || 'Unknown error'}</p>
                                 <button class="btn btn-sm btn-outline-primary" onclick="loadFolderContent('${groupId}')">
                                     <i class="fas fa-redo me-1"></i> Retry
                                 </button>
@@ -1757,7 +1782,7 @@ function app_page_cases(): void
                     messagesList.innerHTML = `
                         <div class="text-center text-muted py-4">
                             <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
-                            <p>Error loading messages</p>
+                            <p>Error loading messages: ${error.message}</p>
                             <button class="btn btn-sm btn-outline-primary" onclick="loadFolderContent('${groupId}')">
                                 <i class="fas fa-redo me-1"></i> Retry
                             </button>
@@ -1928,8 +1953,8 @@ function app_page_cases(): void
                 const filter = document.querySelector('[data-filter].active')?.getAttribute('data-filter') || 'all';
                 
                 // Separate messages and files
-                const textMessages = messages.filter(m => !m.message_type || m.message_type === 'text');
-                const files = messages.filter(m => m.message_type && m.message_type !== 'text');
+                const textMessages = messages.filter(m => !m.message_type || m.message_type === 'chat');
+                const files = messages.filter(m => m.message_type && m.message_type !== 'chat');
                 
                 // Apply filter
                 if (filter === 'all' || filter === 'messages') {
@@ -2379,6 +2404,7 @@ function app_render_register_sasoft(): void
                     <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-envelope-open"></i> <input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                     <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
                     <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="confirm_password" placeholder="Confirm Password*" type="password" required></div></div></div>
+                    <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-ticket-alt"></i> <input class="form-control" name="invite_code" placeholder="Invite Code (optional)" type="text"></div></div></div>
                     <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Register</button></div></div>
                 </form>
                 <div class="sign-up"><p>Already have an account? <a href="/login">Login Now</a></p></div>
@@ -2447,6 +2473,7 @@ function app_render_register_softing(): void
                 <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                 <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
                 <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="confirm_password" placeholder="Confirm Password*" type="password" required></div></div></div>
+                <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="invite_code" placeholder="Invite Code (optional)" type="text"></div></div></div>
                 <div class="row"><div class="col-lg-12"><button type="submit">Register</button></div></div>
             </form>
             <div class="sign-up"><p>Already have an account? <a href="/login">Login now</a></p></div>
@@ -2514,6 +2541,7 @@ function app_render_register_anada(): void
                 <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-envelope-open"></i> <input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                 <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
                 <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="confirm_password" placeholder="Confirm Password*" type="password" required></div></div></div>
+                <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-ticket-alt"></i> <input class="form-control" name="invite_code" placeholder="Invite Code (optional)" type="text"></div></div></div>
                 <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Register</button></div></div>
             </form>
             <div class="sign-up"><p>Already have an account? <a href="/login">Login now</a></p></div>

@@ -49,7 +49,7 @@ function app_whatsapp_send_message(int $sessionId, string $groupId, string $mess
             'message_id' => $response['messageId'] ?? uniqid('msg_', true),
             'sender_number' => $session['phone_number'] ?? 'system',
             'sender_name' => 'You',
-            'message_type' => $mediaType ?: 'text',
+            'message_type' => $mediaType ?: 'chat',
             'content' => $message,
             'media_url' => $mediaPath,
             'media_caption' => $mediaPath ? $message : null,
@@ -128,7 +128,7 @@ function app_whatsapp_process_incoming_message(array $webhookData): void {
     $mediaType = null;
     $mediaSize = null;
     $quotedMessageId = null;
-    $messageType = 'text';
+    $messageType = 'chat';
     
     if (isset($messageData['body'])) {
         $content = $messageData['body'];
@@ -366,7 +366,7 @@ function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): arra
                     'whatsapp_message_id' => $messageData['id'] ?? '',
                     'sender_number' => $senderNumber,
                     'sender_name' => $senderName,
-                    'message_type' => $messageData['type'] ?? 'text',
+                    'message_type' => $messageData['type'] ?? 'chat',
                     'content' => $content,
                     'media_url' => $mediaUrl,
                     'media_caption' => $mediaCaption,
@@ -471,10 +471,10 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     $stmt = $pdo->prepare("
         INSERT INTO group_messages 
         (session_id, group_id, message_id, sender_number, sender_name, message_type, 
-         content, media_url, media_caption, is_from_me, timestamp, created_at,
+         content, media_url, media_caption, caption, is_from_me, timestamp, created_at,
          quoted_message_id, media_type, media_size)
         VALUES (:session_id, :group_id, :message_id, :sender_number, :sender_name, :message_type,
-                :content, :media_url, :media_caption, :is_from_me, :timestamp, NOW(),
+                :content, :media_url, :media_caption, :caption, :is_from_me, :timestamp, NOW(),
                 :quoted_message_id, :media_type, :media_size)
     ");
     
@@ -488,6 +488,7 @@ function app_whatsapp_store_incoming_message(array $messageData): array
         'content' => $messageData['content'],
         'media_url' => $messageData['media_url'] ?: null,
         'media_caption' => $messageData['media_caption'] ?: null,
+        'caption' => $messageData['caption'] ?: null,
         'is_from_me' => $messageData['is_from_me'] ? 1 : 0,
         'timestamp' => $messageData['timestamp'],
         'quoted_message_id' => $messageData['quoted_message_id'] ?: null,

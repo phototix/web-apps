@@ -38,6 +38,21 @@ function app_load_env_file(string $path): void
 
 app_load_env_file(dirname(__DIR__) . '/.env');
 
+// Configure error handling based on environment
+$isProduction = getenv('APP_ENV') === 'production' || !in_array(getenv('APP_ENV'), ['development', 'local', 'test']);
+if ($isProduction) {
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+} else {
+    ini_set('display_errors', '1');
+    ini_set('display_startup_errors', '1');
+    error_reporting(E_ALL);
+}
+
+// Set error log
+ini_set('log_errors', '1');
+ini_set('error_log', dirname(__DIR__) . '/logs/php_errors.log');
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }

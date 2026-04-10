@@ -38,6 +38,7 @@ function app_dispatch_request(): void
             '/cases' => 'app_page_cases',
             '/settings' => 'app_page_settings',
             '/admin/users' => 'app_page_admin_users',
+            '/admin/my-users' => 'app_page_admin_my_users',
         ],
         'POST' => [
             '/login' => 'app_page_login',
@@ -45,6 +46,7 @@ function app_dispatch_request(): void
             '/logout' => 'app_page_logout',
             '/whatsapp-connect' => 'app_page_whatsapp_connect',
             '/admin/users' => 'app_page_admin_users',
+            '/admin/my-users' => 'app_page_admin_my_users',
         ],
     ];
 
@@ -132,5 +134,6 @@ function app_dispatch_api_request(string $method, string $path): void
         return;
     }
 
-    $handler();
+    // Execute the handler with error handling
+    api_execute_safely($handler);
 }

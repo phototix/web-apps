@@ -40,6 +40,14 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <?php endif; ?>
+                    <?php if ($user && in_array($user['role'], ['admin', 'superadmin'])): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/admin/my-users') !== false ? 'active' : '' ?>" href="/admin/my-users">
+                            <i class="fas fa-user-friends"></i>
+                            <span>My Users</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                     <?php if ($user && $user['role'] === 'superadmin'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/admin/users') !== false ? 'active' : '' ?>" href="/admin/users">

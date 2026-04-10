@@ -1,0 +1,8 @@
+[10-Apr-2026 13:46:11 UTC] PHP Warning:  http_response_code(): Cannot set response code - headers already sent (output started at /var/www/html/erp.ezy.chat/app/pages_whatsapp.php:2089) in /var/www/html/erp.ezy.chat/app/api.php on line 7
+[10-Apr-2026 13:46:11 UTC] PHP Warning:  Cannot modify header information - headers already sent by (output started at /var/www/html/erp.ezy.chat/app/pages_whatsapp.php:2089) in /var/www/html/erp.ezy.chat/app/api.php on line 8
+[10-Apr-2026 13:51:29 UTC] PHP Warning:  http_response_code(): Cannot set response code - headers already sent (output started at /var/www/html/erp.ezy.chat/test_final_check.php:8) in /var/www/html/erp.ezy.chat/app/api.php on line 7
+[10-Apr-2026 13:51:29 UTC] PHP Warning:  Cannot modify header information - headers already sent by (output started at /var/www/html/erp.ezy.chat/test_final_check.php:8) in /var/www/html/erp.ezy.chat/app/api.php on line 8
+[10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 31
+[10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 36
+[10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 38
+[10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 39

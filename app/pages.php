@@ -1060,6 +1060,19 @@ function app_page_cases(): void
         font-size: 1.05rem;
         text-align: right;
     }
+
+    .message-data-view {
+        margin-top: 0.35rem;
+    }
+
+    .message-data-modal-content {
+        white-space: pre-wrap;
+        font-size: 0.95rem;
+    }
+
+    .message-data-hidden {
+        display: none;
+    }
     
     .file-item .fa-file-pdf {
         color: #dc3545;
@@ -1314,6 +1327,24 @@ function app_page_cases(): void
             </div>
         </div>
     </div>
+
+    <!-- Messages & Files Data Modal -->
+    <div class="modal fade" id="messagesFilesDataModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Message data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="messagesFilesDataContent" class="message-data-modal-content mb-0"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script>
     // Global functions for category assignment
@@ -1528,6 +1559,29 @@ function app_page_cases(): void
 
         frame.src = fileUrl;
         const modal = new bootstrap.Modal(document.getElementById('messagesFilesPdfModal'));
+        modal.show();
+    }
+
+    function openMessagesFilesDataModal(trigger) {
+        const encodedData = trigger.getAttribute('data-data-content') || '';
+        if (!encodedData) {
+            return;
+        }
+
+        let decodedData = encodedData;
+        try {
+            decodedData = decodeURIComponent(encodedData);
+        } catch (error) {
+            decodedData = encodedData;
+        }
+
+        const contentEl = document.getElementById('messagesFilesDataContent');
+        if (!contentEl) {
+            return;
+        }
+
+        contentEl.textContent = decodedData;
+        const modal = new bootstrap.Modal(document.getElementById('messagesFilesDataModal'));
         modal.show();
     }
 
@@ -2516,7 +2570,16 @@ function app_page_cases(): void
 
                 const dataTextRaw = message.data !== null && message.data !== undefined ? message.data.toString().trim() : '';
                 if (dataTextRaw.length > 0) {
-                    html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                    const dataLines = dataTextRaw.split(/\r?\n/);
+                    if (dataLines.length > 1) {
+                        const encodedData = encodeURIComponent(dataTextRaw);
+                        html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
+                        html += '<i class="fas fa-eye me-1"></i>View data';
+                        html += '</button>';
+                        html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
+                    } else {
+                        html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                    }
                 }
                 
                 // Category badge if available
@@ -2665,7 +2728,16 @@ function app_page_cases(): void
 
                 const dataTextRaw = file.data !== null && file.data !== undefined ? file.data.toString().trim() : '';
                 if (dataTextRaw.length > 0) {
-                    html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                    const dataLines = dataTextRaw.split(/\r?\n/);
+                    if (dataLines.length > 1) {
+                        const encodedData = encodeURIComponent(dataTextRaw);
+                        html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
+                        html += '<i class="fas fa-eye me-1"></i>View data';
+                        html += '</button>';
+                        html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
+                    } else {
+                        html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                    }
                 }
 
                 if (file.message_type === 'document' && file.media_url) {
@@ -2882,9 +2954,6 @@ function app_render_home_sasoft(): void
                         <h2><strong>Business Management Portal</strong></h2>
                         <p>Run finance, inventory, sales, HR, and projects in one workspace. Keep every team aligned with real-time dashboards, approvals, and alerts.</p>
                         <ul>
-                            <li>Centralized data with role-based access.</li>
-                            <li>Automated approvals and audit trails.</li>
-                            <li>Live performance insights across departments.</li>
                         </ul>
                         <div class="button">
                             <a class="btn circle btn-theme effect btn-md" href="/register">Get Started</a>

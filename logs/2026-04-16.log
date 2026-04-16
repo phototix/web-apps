@@ -7068,3 +7068,108 @@
 [2026-04-16 17:29:48] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
 [2026-04-16 17:29:48] INFO: Request: GET /api/whatsapp/groups/120363424694900939%40g.us/messages?session_id=15&limit=50 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360588}
 [2026-04-16 17:29:48] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:30:04] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360604}
+[2026-04-16 17:30:04] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:30:04] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360604,"cleaned_updates":0}
+[2026-04-16 17:30:50] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360650}
+[2026-04-16 17:30:50] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:30:55] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360655}
+[2026-04-16 17:30:55] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:30:55] INFO: Request: GET /favicon.ico {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360655}
+[2026-04-16 17:31:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360661}
+[2026-04-16 17:31:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:31:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360661,"cleaned_updates":0}
+[2026-04-16 17:32:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360722}
+[2026-04-16 17:32:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:32:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360722,"cleaned_updates":0}
+[2026-04-16 17:32:22] INFO: Request: GET /cases {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360742}
+[2026-04-16 17:32:22] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:32:26] INFO: Request: GET /logout {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360746}
+[2026-04-16 17:32:26] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:32:26] INFO: Authentication logout success for drive@webbypage.com {"email":"drive@webbypage.com","action":"logout","success":true,"timestamp":1776360746}
+[2026-04-16 17:32:26] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360746}
+[2026-04-16 17:32:30] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776360750}
+[2026-04-16 17:33:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360781}
+[2026-04-16 17:33:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:33:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360781,"cleaned_updates":0}
+[2026-04-16 17:34:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360841}
+[2026-04-16 17:34:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:34:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360841,"cleaned_updates":0}
+[2026-04-16 17:35:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360902}
+[2026-04-16 17:35:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:35:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360902,"cleaned_updates":0}
+[2026-04-16 17:36:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776360962}
+[2026-04-16 17:36:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:36:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776360962,"cleaned_updates":0}
+[2026-04-16 17:36:47] INFO: Request: POST /api/whatsapp/incoming/message {"ip":"::1","user_agent":"axios/1.13.5","timestamp":1776361007}
+[2026-04-16 17:36:47] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:36:47] INFO: Request: POST /api/whatsapp/incoming/message {"ip":"::1","user_agent":"axios/1.13.5","timestamp":1776361007}
+[2026-04-16 17:36:48] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:36:50] INFO: Request: POST /api/whatsapp/incoming/message {"ip":"::1","user_agent":"axios/1.13.5","timestamp":1776361010}
+[2026-04-16 17:36:50] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:36:54] INFO: Request: POST /api/whatsapp/incoming/message {"ip":"::1","user_agent":"axios/1.13.5","timestamp":1776361014}
+[2026-04-16 17:36:54] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:37:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361022}
+[2026-04-16 17:37:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:37:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361022,"cleaned_updates":0}
+[2026-04-16 17:37:03] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361023}
+[2026-04-16 17:37:17] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361037}
+[2026-04-16 17:37:17] INFO: Request: GET /themes/Sasoft-v2.0/assets/img/app/app-4.png?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361037}
+[2026-04-16 17:37:18] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361038}
+[2026-04-16 17:37:18] INFO: Request: GET /themes/Sasoft-v2.0/assets/img/app/app-4.png?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361038}
+[2026-04-16 17:38:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361081}
+[2026-04-16 17:38:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:38:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361081,"cleaned_updates":2}
+[2026-04-16 17:38:12] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361092}
+[2026-04-16 17:38:12] INFO: Request: GET /themes/Sasoft-v2.0/assets/img/app/app-4.png?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361092}
+[2026-04-16 17:38:57] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361137}
+[2026-04-16 17:39:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361142}
+[2026-04-16 17:39:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:39:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361142,"cleaned_updates":0}
+[2026-04-16 17:39:10] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361150}
+[2026-04-16 17:39:13] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361153}
+[2026-04-16 17:39:55] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361195}
+[2026-04-16 17:39:57] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361197}
+[2026-04-16 17:39:58] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361198}
+[2026-04-16 17:40:00] INFO: Request: GET / {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361200}
+[2026-04-16 17:40:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361201}
+[2026-04-16 17:40:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:40:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361201,"cleaned_updates":0}
+[2026-04-16 17:41:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361262}
+[2026-04-16 17:41:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361262,"cleaned_updates":0}
+[2026-04-16 17:41:34] INFO: Request: GET /register {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361294}
+[2026-04-16 17:41:36] INFO: Request: GET /login {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361296}
+[2026-04-16 17:41:37] INFO: Request: POST /login {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361297}
+[2026-04-16 17:41:37] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:37] INFO: Authentication login success for brandon@kkbuddy.com {"email":"brandon@kkbuddy.com","action":"login","success":true,"timestamp":1776361297}
+[2026-04-16 17:41:37] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361297}
+[2026-04-16 17:41:37] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:39] INFO: Request: GET /admin/users {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361299}
+[2026-04-16 17:41:39] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:49] INFO: Request: GET /welcome {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361309}
+[2026-04-16 17:41:49] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:50] INFO: Request: GET /cases {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361310}
+[2026-04-16 17:41:50] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:53] INFO: Request: GET /groups {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361313}
+[2026-04-16 17:41:53] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:53] INFO: Request: GET /assets/js/realtime.js?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361313}
+[2026-04-16 17:41:54] INFO: Request: GET /whatsapp-connect {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361314}
+[2026-04-16 17:41:54] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:55] INFO: Request: GET /groups {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361315}
+[2026-04-16 17:41:55] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:55] INFO: Request: GET /assets/js/realtime.js?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361315}
+[2026-04-16 17:41:56] INFO: Request: GET /groups?session=user1_session1_246bab93&group=996 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361316}
+[2026-04-16 17:41:56] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:41:56] INFO: Request: GET /assets/js/realtime.js?v=20260416122609 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361316}
+[2026-04-16 17:41:56] INFO: Request: GET /api/whatsapp/groups/996/messages?limit=50 {"ip":"::1","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36","timestamp":1776361316}
+[2026-04-16 17:41:56] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:42:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361321}
+[2026-04-16 17:42:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:42:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361321,"cleaned_updates":1}
+[2026-04-16 17:43:01] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361381}
+[2026-04-16 17:43:01] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:43:01] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361381,"cleaned_updates":0}
+[2026-04-16 17:44:02] INFO: Request: UNKNOWN / {"ip":"0.0.0.0","user_agent":"Unknown","timestamp":1776361442}
+[2026-04-16 17:44:02] INFO: Database connection established {"host":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4","database":"mysql:host=172.17.0.1;port=3306;dbname=erp_ezy_chat;charset=utf8mb4"}
+[2026-04-16 17:44:02] INFO: Webhook processing completed {"processed":0,"failed":0,"timestamp":1776361442,"cleaned_updates":0}

@@ -2874,8 +2874,31 @@ function app_render_home_sasoft(): void
             </div>
         </nav>
     </header>
-    <div class="banner-area responsive-top-pad circle-shape text-center auto-height bg-shape bg-gray" style="background-image: url(<?= htmlspecialchars(app_theme_asset('assets/img/shape/1.png'), ENT_QUOTES, 'UTF-8') ?>);">
-        <div class="container"><div class="content-box"><div class="row align-center"><div class="col-lg-8 offset-lg-2 info"><h2>Theme Ready: <strong>Sasoft-v2.0</strong></h2><p>Switch templates using APP_THEME in your .env file.</p></div></div></div></div>
+    <div class="banner-area responsive-top-pad circle-shape auto-height bg-shape bg-gray" style="background-image: url(<?= htmlspecialchars(app_theme_asset('assets/img/shape/1.png'), ENT_QUOTES, 'UTF-8') ?>);">
+        <div class="container">
+            <div class="content-box">
+                <div class="row align-center">
+                    <div class="col-lg-6 info">
+                        <h2><strong>Business Management Portal</strong></h2>
+                        <p>Run finance, inventory, sales, HR, and projects in one workspace. Keep every team aligned with real-time dashboards, approvals, and alerts.</p>
+                        <ul>
+                            <li>Centralized data with role-based access.</li>
+                            <li>Automated approvals and audit trails.</li>
+                            <li>Live performance insights across departments.</li>
+                        </ul>
+                        <div class="button">
+                            <a class="btn circle btn-theme effect btn-md" href="/register">Get Started</a>
+                            <a class="btn circle btn-theme border btn-md" href="/login">Login</a>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="thumb-innner">
+                            <img src="<?= htmlspecialchars(app_asset('images/erpsoft-webbycms.png'), ENT_QUOTES, 'UTF-8') ?>" alt="ERPSoft-WebbyCMS">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <?php
 }
@@ -2956,7 +2979,59 @@ function app_render_home_softing(): void
             </div>
         </nav>
     </header>
-    <div class="banner-area content-double shape-line bg-theme-small normal-text"><div class="box-table"><div class="box-cell"><div class="container"><div class="row align-center"><div class="col-lg-5 left-info"><div class="content"><h1>Theme Ready: <span>softing-v2.0</span></h1><p>Set APP_THEME in .env to switch templates instantly.</p><a class="btn circle btn-theme border btn-md" href="/login">Login</a></div></div><div class="col-lg-7 right-info"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/app/app-4.png'), ENT_QUOTES, 'UTF-8') ?>" alt="Thumb"></div></div></div></div></div></div>
+    <div class="banner-area content-double shape-line bg-theme-small normal-text"><div class="box-table"><div class="box-cell"><div class="container"><div class="row align-center"><div class="col-lg-5 left-info"><div class="content"><h1>ERPSoft-WebbyCMS</h1><p>Business Management Portal to run finance, inventory, sales, HR, and projects in one place.</p><a class="btn circle btn-theme effect btn-md" href="/register">Get Started</a> <a class="btn circle btn-theme border btn-md" href="/login">Login</a></div></div><div class="col-lg-7 right-info"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/app/app-4.png'), ENT_QUOTES, 'UTF-8') ?>" alt="ERP Dashboard"></div></div></div></div></div></div>
+    <div id="features" class="features-area default-padding bottom-less">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 offset-lg-2">
+                    <div class="site-heading text-center">
+                        <h2 class="area-title">Daily operations, simplified</h2>
+                        <div class="devider"></div>
+                        <p>Short, focused tools for the work your teams do every day.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="features-box text-center">
+                <div class="row">
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-website"></i></div><h4>Unified Data</h4><p>All departments work from the same records and reports.</p></div></div>
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-report"></i></div><h4>Real-Time KPIs</h4><p>See cash flow, sales, and operations at a glance.</p></div></div>
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-resolution-1"></i></div><h4>Role Security</h4><p>Granular permissions with complete audit trails.</p></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="workflow" class="process-area default-padding-bottom">
+        <div class="container">
+            <div class="row align-center">
+                <div class="col-lg-6 thumb"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/illustration/7.png'), ENT_QUOTES, 'UTF-8') ?>" alt="Workflow"></div>
+                <div class="col-lg-6 info ml-auto">
+                    <h2 class="area-title">Three steps to go live</h2>
+                    <ul>
+                        <li><div class="icon"><i class="flaticon-presentation"></i><span>01</span></div><div class="info"><h4>Set roles</h4><p>Invite teams and define access in minutes.</p></div></li>
+                        <li><div class="icon"><i class="flaticon-target"></i><span>02</span></div><div class="info"><h4>Capture work</h4><p>Log transactions, requests, and updates daily.</p></div></li>
+                        <li><div class="icon"><i class="flaticon-report"></i><span>03</span></div><div class="info"><h4>Track results</h4><p>Use dashboards to keep leaders informed.</p></div></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="modules" class="overview-area relative bg-gray default-padding-top">
+        <div class="container">
+            <div class="row align-center">
+                <div class="col-lg-6 info">
+                    <h2 class="area-title">Core modules</h2>
+                    <p>Finance, inventory, sales, HR, and projects ready on day one.</p>
+                    <ul>
+                        <li>General ledger, invoicing, expenses</li>
+                        <li>Stock, purchasing, vendors</li>
+                        <li>Leads, orders, customer records</li>
+                        <li>Payroll, leave, performance</li>
+                    </ul>
+                </div>
+                <div class="col-lg-6 thumb"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/dashboard/1.jpg'), ENT_QUOTES, 'UTF-8') ?>" alt="Modules"></div>
+            </div>
+        </div>
+    </div>
     <?php
 }
 
@@ -3032,7 +3107,59 @@ function app_render_home_anada(): void
             </div>
         </nav>
     </header>
-    <div class="banner-area text-combo top-pad-90 rectangular-shape bg-light-gradient"><div class="item"><div class="box-table"><div class="box-cell"><div class="container"><h1>Theme Ready: Anada-v2.0</h1><p>Data-style template is now integrated with your auth routes.</p><a class="btn circle btn-theme effect btn-md" href="/login">Login</a></div></div></div></div></div>
+    <div class="banner-area text-combo top-pad-90 rectangular-shape bg-light-gradient"><div class="item"><div class="box-table"><div class="box-cell"><div class="container"><h1>ERPSoft-WebbyCMS</h1><p>Business Management Portal to unify finance, inventory, sales, HR, and projects.</p><a class="btn circle btn-theme effect btn-md" href="/register">Get Started</a> <a class="btn circle btn-theme border btn-md" href="/login">Login</a></div></div></div></div></div>
+    <div id="features" class="features-area default-padding bottom-less">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 offset-lg-2">
+                    <div class="site-heading text-center">
+                        <h2 class="area-title">Built for operational clarity</h2>
+                        <div class="devider"></div>
+                        <p>Short, simple workflows that keep teams aligned.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="features-box text-center">
+                <div class="row">
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-website"></i></div><h4>Unified Records</h4><p>One place for every department's data.</p></div></div>
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-drag"></i></div><h4>Approval Flows</h4><p>Route requests with clear ownership.</p></div></div>
+                    <div class="single-item col-lg-4 col-md-6"><div class="item"><div class="icon"><i class="flaticon-report"></i></div><h4>Live Dashboards</h4><p>See performance and cash flow instantly.</p></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="workflow" class="process-area default-padding-bottom">
+        <div class="container">
+            <div class="row align-center">
+                <div class="col-lg-6 thumb"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/illustration/7.png'), ENT_QUOTES, 'UTF-8') ?>" alt="Workflow"></div>
+                <div class="col-lg-6 info ml-auto">
+                    <h2 class="area-title">Go live in three steps</h2>
+                    <ul>
+                        <li><div class="icon"><i class="flaticon-presentation"></i><span>01</span></div><div class="info"><h4>Configure roles</h4><p>Assign permissions and departments fast.</p></div></li>
+                        <li><div class="icon"><i class="flaticon-target"></i><span>02</span></div><div class="info"><h4>Run operations</h4><p>Capture orders, expenses, and updates daily.</p></div></li>
+                        <li><div class="icon"><i class="flaticon-report"></i><span>03</span></div><div class="info"><h4>Review performance</h4><p>Use alerts and reports to make decisions.</p></div></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="modules" class="overview-area relative bg-gray default-padding-top">
+        <div class="container">
+            <div class="row align-center">
+                <div class="col-lg-6 info">
+                    <h2 class="area-title">Core modules included</h2>
+                    <p>Start with the essentials and expand as needed.</p>
+                    <ul>
+                        <li>Finance, invoices, expenses</li>
+                        <li>Inventory, purchasing, vendors</li>
+                        <li>Sales, customers, orders</li>
+                        <li>HR, payroll, performance</li>
+                    </ul>
+                </div>
+                <div class="col-lg-6 thumb"><img src="<?= htmlspecialchars(app_theme_asset('assets/img/app/app-4.png'), ENT_QUOTES, 'UTF-8') ?>" alt="Modules"></div>
+            </div>
+        </div>
+    </div>
     <?php
 }
 

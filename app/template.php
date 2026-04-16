@@ -87,7 +87,7 @@ function app_pull_flash(): ?array
 
 function app_page_title(string $title): string
 {
-    return $title . ' | ' . app_theme() . ' PHP App';
+    return $title . ' | ERPSoft-WebbyCMS';
 }
 
 function app_render_head(string $title): void

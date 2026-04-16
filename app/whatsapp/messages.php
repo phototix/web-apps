@@ -406,6 +406,16 @@ function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): arra
 function app_whatsapp_store_incoming_message(array $messageData): array
 {
     $pdo = app_db();
+
+    if (!isset($messageData['category_id'])) {
+        $messageData['category_id'] = app_whatsapp_detect_message_category(
+            (int) $messageData['session_id'],
+            (string) $messageData['message_type'],
+            (string) $messageData['content'],
+            (string) $messageData['media_caption'],
+            (string) $messageData['caption']
+        );
+    }
     
     // Check if message already exists
     $stmt = $pdo->prepare("
@@ -471,10 +481,10 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     $stmt = $pdo->prepare("
         INSERT INTO group_messages 
         (session_id, group_id, message_id, sender_number, sender_name, message_type, 
-         content, media_url, media_caption, caption, is_from_me, timestamp, created_at,
+         content, media_url, media_caption, category_id, caption, is_from_me, timestamp, created_at,
          quoted_message_id, media_type, media_size)
         VALUES (:session_id, :group_id, :message_id, :sender_number, :sender_name, :message_type,
-                :content, :media_url, :media_caption, :caption, :is_from_me, :timestamp, NOW(),
+                :content, :media_url, :media_caption, :category_id, :caption, :is_from_me, :timestamp, NOW(),
                 :quoted_message_id, :media_type, :media_size)
     ");
     
@@ -488,6 +498,7 @@ function app_whatsapp_store_incoming_message(array $messageData): array
         'content' => $messageData['content'],
         'media_url' => $messageData['media_url'] ?: null,
         'media_caption' => $messageData['media_caption'] ?: null,
+        'category_id' => $messageData['category_id'] ?: null,
         'caption' => $messageData['caption'] ?: null,
         'is_from_me' => $messageData['is_from_me'] ? 1 : 0,
         'timestamp' => $messageData['timestamp'],
@@ -497,6 +508,15 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     ]);
     
     $messageId = (int) $pdo->lastInsertId();
+
+    if (!empty($messageData['category_id']) && empty($messageData['is_from_me'])) {
+        app_whatsapp_send_category_assignment_notification(
+            (int) $messageData['session_id'],
+            (string) $messageData['chat_id'],
+            (int) $messageData['category_id'],
+            (string) $messageData['message_id']
+        );
+    }
     
     // Update group's last message
     $preview = strlen($messageData['content']) > 50 ? substr($messageData['content'], 0, 47) . '...' : $messageData['content'];
@@ -539,6 +559,7 @@ function app_whatsapp_store_incoming_message(array $messageData): array
             'sender_name' => $messageData['sender_name'],
             'content' => $messageData['content'],
             'message_type' => $messageData['message_type'],
+            'category_id' => $messageData['category_id'],
             'timestamp' => $messageData['timestamp'],
             'is_from_me' => $messageData['is_from_me']
         ]),
@@ -546,4 +567,101 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     ]);
     
     return ['id' => $messageId, 'existing' => false];
+}
+
+function app_whatsapp_detect_message_category(int $sessionId, string $messageType, string $content, string $mediaCaption, string $caption): ?int
+{
+    $messageType = strtolower(trim($messageType));
+    $text = '';
+
+    if ($messageType === 'chat') {
+        $text = trim($content);
+    } elseif (in_array($messageType, ['image', 'document'], true)) {
+        $text = trim($mediaCaption ?: $caption ?: $content);
+    }
+
+    if ($text === '') {
+        return null;
+    }
+
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        SELECT c.id, c.keywords
+        FROM categories c
+        JOIN whatsapp_sessions ws ON c.user_id = ws.user_id
+        WHERE ws.id = :session_id
+          AND c.is_active = TRUE
+          AND c.keywords IS NOT NULL
+          AND c.keywords <> ''
+        ORDER BY c.sort_order ASC, c.name ASC
+    ");
+    $stmt->execute(['session_id' => $sessionId]);
+    $categories = $stmt->fetchAll();
+
+    $haystack = strtolower($text);
+
+    foreach ($categories as $category) {
+        $keywords = app_whatsapp_parse_keywords((string) $category['keywords']);
+        foreach ($keywords as $keyword) {
+            $needle = strtolower($keyword);
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return (int) $category['id'];
+            }
+        }
+    }
+
+    return null;
+}
+
+function app_whatsapp_parse_keywords(string $keywords): array
+{
+    $parts = preg_split('/[\r\n,;]+/', $keywords) ?: [];
+    $cleaned = [];
+
+    foreach ($parts as $part) {
+        $value = trim($part);
+        if ($value !== '') {
+            $cleaned[] = $value;
+        }
+    }
+
+    return $cleaned;
+}
+
+function app_whatsapp_send_category_assignment_notification(int $sessionId, string $chatId, int $categoryId, string $messageId): void
+{
+    if (!str_ends_with($chatId, '@g.us')) {
+        return;
+    }
+
+    $session = app_whatsapp_get_session($sessionId);
+    if (!$session) {
+        return;
+    }
+
+    $category = app_whatsapp_get_category($categoryId);
+    if (!$category) {
+        return;
+    }
+
+    $message = 'Auto-assigned category: ' . $category['name'];
+
+    try {
+        app_whatsapp_api_post(
+            '/api/sendText',
+            [
+                'chatId' => $chatId,
+                'text' => $message,
+                'session' => $session['session_name'],
+                'reply_to' => $messageId
+            ],
+            app_whatsapp_api_key()
+        );
+    } catch (Exception $e) {
+        app_log('Failed to send category assignment notice: ' . $e->getMessage(), 'WARNING', [
+            'session_id' => $sessionId,
+            'chat_id' => $chatId,
+            'category_id' => $categoryId
+        ]);
+    }
 }

@@ -127,6 +127,13 @@ function api_require_auth(): array
     return $user;
 }
 
+function api_get_effective_user_id(array $user): int
+{
+    $effectiveUser = app_get_effective_user($user);
+
+    return (int) ($effectiveUser['id'] ?? 0);
+}
+
 function api_get_query_param(string $key, $default = null)
 {
     return $_GET[$key] ?? $default;
@@ -290,7 +297,8 @@ function api_whatsapp_get_sessions(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
-    $sessions = app_whatsapp_get_user_sessions($user['id']);
+    $effectiveUserId = api_get_effective_user_id($user);
+    $sessions = app_whatsapp_get_user_sessions($effectiveUserId);
     
     api_success('Sessions retrieved', [
         'sessions' => $sessions,
@@ -304,7 +312,8 @@ function api_whatsapp_create_session(): void {
     $user = api_require_auth();
     
     try {
-        $result = app_whatsapp_create_session($user['id']);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $result = app_whatsapp_create_session($effectiveUserId);
         api_success('Session created', $result, 201);
     } catch (Exception $e) {
         api_error($e->getMessage());
@@ -334,7 +343,8 @@ function api_whatsapp_get_qr(): void {
         $session = app_whatsapp_get_session_by_name($sessionParam);
     }
     
-    if (!$session || $session['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
         api_forbidden('Session not found or access denied');
     }
     
@@ -383,7 +393,8 @@ function api_whatsapp_get_session_status(): void {
         $session = app_whatsapp_get_session_by_name($sessionParam);
     }
     
-    if (!$session || $session['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
         api_forbidden('Session not found or access denied');
     }
     
@@ -418,7 +429,8 @@ function api_whatsapp_delete_session(): void {
         $session = app_whatsapp_get_session_by_name($sessionParam);
     }
     
-    if (!$session || $session['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
         api_forbidden('Session not found or access denied');
     }
     
@@ -457,7 +469,8 @@ function api_whatsapp_sync_groups(): void {
         $session = app_whatsapp_get_session_by_name($sessionParam);
     }
     
-    if (!$session || $session['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
         api_forbidden('Session not found or access denied');
     }
     
@@ -473,7 +486,8 @@ function api_whatsapp_get_groups(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
-    $groups = app_whatsapp_get_user_groups($user['id']);
+    $effectiveUserId = api_get_effective_user_id($user);
+    $groups = app_whatsapp_get_user_groups($effectiveUserId);
     
     api_success('Groups retrieved', [
         'groups' => $groups,
@@ -503,7 +517,8 @@ function api_whatsapp_create_group(): void {
     
     // Verify session belongs to user
     $session = app_whatsapp_get_session($sessionId);
-    if (!$session || $session['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
         api_forbidden('Session not found or access denied');
     }
     
@@ -551,7 +566,8 @@ function api_whatsapp_get_group_messages(): void {
         }
     }
     
-    if (!$group || $group['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
         api_forbidden('Group not found or access denied');
     }
     
@@ -612,7 +628,8 @@ function api_whatsapp_send_message(): void {
         }
     }
     
-    if (!$group || $group['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
         api_forbidden('Group not found or access denied');
     }
     
@@ -639,7 +656,8 @@ function api_realtime_updates(): void {
     
     // Poll for new updates
     while ((time() - $startTime) < $timeout) {
-        $updates = app_get_realtime_updates($user['id'], $lastUpdateId);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $updates = app_get_realtime_updates($effectiveUserId, $lastUpdateId);
         
         if (!empty($updates)) {
             api_success('Updates available', [
@@ -667,7 +685,8 @@ function api_mark_update_read(): void
     $updateId = (int) ($input['update_id'] ?? 0);
     
     if ($updateId > 0) {
-        app_mark_update_read($user['id'], $updateId);
+        $effectiveUserId = api_get_effective_user_id($user);
+        app_mark_update_read($effectiveUserId, $updateId);
     }
     
     api_success('Update marked as read');
@@ -711,6 +730,11 @@ function api_whatsapp_incoming_message(): void
     $content = trim($input['content'] ?? '');
     $messageType = trim($input['message_type'] ?? '');
     $isFromMe = (bool) ($input['is_from_me'] ?? false);
+    $mediaUrl = trim($input['media_url'] ?? $input['mediaUrl'] ?? '');
+    $mediaCaption = trim($input['media_caption'] ?? $input['mediaCaption'] ?? '');
+    $caption = trim($input['caption'] ?? '');
+    $mediaType = trim($input['media_type'] ?? $input['mediaType'] ?? '');
+    $mediaSize = (int) ($input['media_size'] ?? $input['mediaSize'] ?? 0);
     
     $errors = [];
     
@@ -732,14 +756,18 @@ function api_whatsapp_incoming_message(): void
         $errors['sender'] = 'Sender is required';
     }
     
-    if (empty($content) && empty($input['media_url'])) {
+    if (empty($content) && empty($mediaUrl)) {
         $errors['content'] = 'Content or media URL is required';
     }
     
+    if ($messageType === 'ptt') {
+        $messageType = 'audio';
+    }
+
     if (empty($messageType)) {
         $errors['message_type'] = 'Message type is required';
     } elseif (!in_array($messageType, ['chat', 'image', 'video', 'audio', 'document', 'sticker'])) {
-        $errors['message_type'] = 'Invalid message type. Must be: chat, image, video, audio, document, sticker';
+        $errors['message_type'] = 'Invalid message type. Must be: chat, image, video, audio, document, sticker, ptt';
     }
     
     if (!empty($errors)) {
@@ -769,11 +797,11 @@ function api_whatsapp_incoming_message(): void
         'timestamp' => (int) ($input['timestamp'] ?? time() * 1000),
         'is_from_me' => $isFromMe,
         'quoted_message_id' => trim($input['quoted_message_id'] ?? ''),
-        'media_url' => trim($input['media_url'] ?? ''),
-        'media_caption' => trim($input['media_caption'] ?? ''),
-        'caption' => trim($input['caption'] ?? ''),
-        'media_type' => trim($input['media_type'] ?? ''),
-        'media_size' => (int) ($input['media_size'] ?? 0),
+        'media_url' => $mediaUrl,
+        'media_caption' => $mediaCaption,
+        'caption' => $caption,
+        'media_type' => $mediaType,
+        'media_size' => $mediaSize,
     ];
     
     try {
@@ -819,9 +847,14 @@ function api_whatsapp_incoming_messages_batch(): void
             $content = trim($message['content'] ?? '');
             $messageType = trim($message['message_type'] ?? '');
             $isFromMe = (bool) ($message['is_from_me'] ?? false);
+            $mediaUrl = trim($message['media_url'] ?? $message['mediaUrl'] ?? '');
+            $mediaCaption = trim($message['media_caption'] ?? $message['mediaCaption'] ?? '');
+            $caption = trim($message['caption'] ?? '');
+            $mediaType = trim($message['media_type'] ?? $message['mediaType'] ?? '');
+            $mediaSize = (int) ($message['media_size'] ?? $message['mediaSize'] ?? 0);
             
             if (empty($sessionName) || empty($chatId) || empty($messageId) || empty($sender) || 
-                (empty($content) && empty($message['media_url'])) || empty($messageType)) {
+                (empty($content) && empty($mediaUrl)) || empty($messageType)) {
                 throw new Exception('Missing required fields');
             }
             
@@ -847,11 +880,11 @@ function api_whatsapp_incoming_messages_batch(): void
                 'timestamp' => (int) ($message['timestamp'] ?? time() * 1000),
                 'is_from_me' => $isFromMe,
                 'quoted_message_id' => trim($message['quoted_message_id'] ?? ''),
-                'media_url' => trim($message['media_url'] ?? ''),
-                'media_caption' => trim($message['media_caption'] ?? ''),
-                'caption' => trim($message['caption'] ?? ''),
-                'media_type' => trim($message['media_type'] ?? ''),
-                'media_size' => (int) ($message['media_size'] ?? 0),
+                'media_url' => $mediaUrl,
+                'media_caption' => $mediaCaption,
+                'caption' => $caption,
+                'media_type' => $mediaType,
+                'media_size' => $mediaSize,
             ];
             
             // Store the message
@@ -922,7 +955,8 @@ function api_whatsapp_get_categories(): void {
         
         $all = api_get_query_param('all') === 'true';
         
-        $categories = app_whatsapp_get_user_categories($user['id'], $parentId, $all);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $categories = app_whatsapp_get_user_categories($effectiveUserId, $parentId, $all);
         
         api_success('Categories retrieved', [
             'categories' => array_map(function($category) {
@@ -953,8 +987,43 @@ function api_whatsapp_get_category_tree(): void {
     api_require_method('GET');
     $user = api_require_auth();
     
+    $groupIdParam = api_get_query_param('group_id');
+    $whatsappGroupId = null;
+    $sessionId = null;
+    $internalGroupId = null;
+    
     try {
-        $categories = app_whatsapp_get_category_tree($user['id']);
+        // If group_id is provided, resolve the WhatsApp group ID and session
+        if ($groupIdParam) {
+            $group = null;
+            if (is_numeric($groupIdParam)) {
+                // Backward compatibility: numeric internal group ID
+                $internalGroupId = (int) $groupIdParam;
+                $group = app_whatsapp_get_group($internalGroupId);
+                $effectiveUserId = api_get_effective_user_id($user);
+                if (!$group || $group['user_id'] !== $effectiveUserId) {
+                    api_forbidden('Group not found or access denied');
+                }
+                $whatsappGroupId = $group['group_id'];
+                $sessionId = $group['session_id'];
+            } else {
+                // Preferred: WhatsApp group ID with session_id
+                $sessionId = (int) api_get_query_param('session_id');
+                $whatsappGroupId = trim((string) $groupIdParam);
+                if (!$sessionId) {
+                    api_validation_error(['session_id' => 'Session ID is required when using WhatsApp group ID']);
+                }
+                $group = app_whatsapp_get_group_by_session_and_id($sessionId, $whatsappGroupId);
+                $effectiveUserId = api_get_effective_user_id($user);
+                if (!$group || $group['user_id'] !== $effectiveUserId) {
+                    api_forbidden('Group not found or access denied');
+                }
+                $internalGroupId = (int) $group['id'];
+            }
+        }
+        
+        $effectiveUserId = api_get_effective_user_id($user);
+        $categories = app_whatsapp_get_category_tree($effectiveUserId, $whatsappGroupId, $sessionId, $internalGroupId);
         
         api_success('Category tree retrieved', [
             'categories' => $categories
@@ -972,7 +1041,8 @@ function api_whatsapp_get_category(): void {
     $categoryId = (int) api_get_query_param('id');
     
     $category = app_whatsapp_get_category($categoryId);
-    if (!$category || $category['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$category || $category['user_id'] !== $effectiveUserId) {
         api_forbidden('Category not found or access denied');
     }
     
@@ -1015,7 +1085,8 @@ function api_whatsapp_create_category(): void {
     }
     
     try {
-        $categoryId = app_whatsapp_create_category($user['id'], $name, $description, $keywords ?: null, $prompt ?: null, $color ?: null, $parentId);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $categoryId = app_whatsapp_create_category($effectiveUserId, $name, $description, $keywords ?: null, $prompt ?: null, $color ?: null, $parentId);
         
         $category = app_whatsapp_get_category($categoryId);
         
@@ -1045,7 +1116,8 @@ function api_whatsapp_update_category(): void {
     $data = api_get_json_input();
     
     try {
-        $success = app_whatsapp_update_category($categoryId, $user['id'], $data);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $success = app_whatsapp_update_category($categoryId, $effectiveUserId, $data);
         
         if ($success) {
             $category = app_whatsapp_get_category($categoryId);
@@ -1079,7 +1151,8 @@ function api_whatsapp_delete_category(): void {
     $categoryId = (int) api_get_query_param('id');
     
     try {
-        $success = app_whatsapp_delete_category($categoryId, $user['id']);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $success = app_whatsapp_delete_category($categoryId, $effectiveUserId);
         
         if ($success) {
             api_success('Category deleted');
@@ -1102,11 +1175,13 @@ function api_whatsapp_get_category_messages(): void {
     
     // Verify category belongs to user
     $category = app_whatsapp_get_category($categoryId);
-    if (!$category || $category['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$category || $category['user_id'] !== $effectiveUserId) {
         api_forbidden('Category not found or access denied');
     }
     
-    $messages = app_whatsapp_get_messages_by_category($user['id'], $categoryId, $limit, $before);
+    $effectiveUserId = api_get_effective_user_id($user);
+    $messages = app_whatsapp_get_messages_by_category($effectiveUserId, $categoryId, $limit, $before);
     
     api_success('Category messages retrieved', [
         'messages' => array_map(function($message) {
@@ -1141,11 +1216,13 @@ function api_whatsapp_get_category_groups(): void {
     
     // Verify category belongs to user
     $category = app_whatsapp_get_category($categoryId);
-    if (!$category || $category['user_id'] !== $user['id']) {
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$category || $category['user_id'] !== $effectiveUserId) {
         api_forbidden('Category not found or access denied');
     }
     
-    $groups = app_whatsapp_get_groups_by_category($user['id'], $categoryId);
+    $effectiveUserId = api_get_effective_user_id($user);
+    $groups = app_whatsapp_get_groups_by_category($effectiveUserId, $categoryId);
     
     api_success('Category groups retrieved', [
         'groups' => array_map(function($group) {
@@ -1179,7 +1256,8 @@ function api_whatsapp_assign_message_category(): void {
     $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
     
     try {
-        $success = app_whatsapp_assign_message_category($messageId, $categoryId, $user['id']);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $success = app_whatsapp_assign_message_category($messageId, $categoryId, $effectiveUserId);
         
         if ($success) {
             api_success('Message category assigned');
@@ -1202,7 +1280,8 @@ function api_whatsapp_assign_group_category(): void {
     $categoryId = isset($data['category_id']) ? (int) $data['category_id'] : null;
     
     try {
-        $success = app_whatsapp_assign_group_category($groupId, $categoryId, $user['id']);
+        $effectiveUserId = api_get_effective_user_id($user);
+        $success = app_whatsapp_assign_group_category($groupId, $categoryId, $effectiveUserId);
         
         if ($success) {
             api_success('Group category assigned');

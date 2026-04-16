@@ -40,27 +40,31 @@ function app_tier_limits(): array {
 }
 
 function app_can_create_session(array $user): bool {
-    $currentSessions = app_whatsapp_count_user_sessions($user['id']);
-    $tierLimits = app_tier_limits()[$user['tier']] ?? app_tier_limits()['basic'];
+    $effectiveUser = app_get_effective_user($user);
+    $currentSessions = app_whatsapp_count_user_sessions($effectiveUser['id']);
+    $tierLimits = app_tier_limits()[$effectiveUser['tier']] ?? app_tier_limits()['basic'];
     
     return $currentSessions < $tierLimits['max_sessions'];
 }
 
 function app_can_create_group(array $user): bool {
-    if ($user['role'] === 'superadmin') return true;
-    if ($user['role'] === 'admin') return true;
+    $effectiveUser = app_get_effective_user($user);
+    if ($effectiveUser['role'] === 'superadmin') return true;
+    if ($effectiveUser['role'] === 'admin') return true;
     
-    $tierLimits = app_tier_limits()[$user['tier']] ?? app_tier_limits()['basic'];
+    $tierLimits = app_tier_limits()[$effectiveUser['tier']] ?? app_tier_limits()['basic'];
     return in_array('group_management', $tierLimits['features']);
 }
 
 function app_get_session_limit(array $user): int {
-    $tierLimits = app_tier_limits()[$user['tier']] ?? app_tier_limits()['basic'];
+    $effectiveUser = app_get_effective_user($user);
+    $tierLimits = app_tier_limits()[$effectiveUser['tier']] ?? app_tier_limits()['basic'];
     return $tierLimits['max_sessions'];
 }
 
 function app_get_user_tier_features(array $user): array {
-    $tierLimits = app_tier_limits()[$user['tier']] ?? app_tier_limits()['basic'];
+    $effectiveUser = app_get_effective_user($user);
+    $tierLimits = app_tier_limits()[$effectiveUser['tier']] ?? app_tier_limits()['basic'];
     return $tierLimits['features'];
 }
 

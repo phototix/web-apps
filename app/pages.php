@@ -524,6 +524,8 @@ function app_page_cases(): void
     app_require_auth();
 
     $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = $effectiveUser['id'] ?? 0;
 
     app_render_head('Cases');
 
@@ -547,12 +549,12 @@ function app_page_cases(): void
             WHERE ws.user_id = ?
             ORDER BY ws.session_name ASC, wg.name ASC
         ");
-        $stmt->execute([$user['id']]);
+        $stmt->execute([$effectiveUserId]);
         $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Get sessions with account info (like the /groups page does)
         require_once __DIR__ . '/whatsapp/sessions.php';
-        $sessions = app_whatsapp_get_user_sessions($user['id']);
+        $sessions = app_whatsapp_get_user_sessions($effectiveUserId);
         
         // Filter to only sessions that have groups
         $sessionsWithGroups = [];
@@ -1006,6 +1008,11 @@ function app_page_cases(): void
     .file-item .fa-file-video {
         color: #fd7e14;
     }
+
+    .message-file-thumb {
+        max-height: 120px;
+        cursor: pointer;
+    }
     
     /* Narrower folder cards */
     .folder-card {
@@ -1196,6 +1203,41 @@ function app_page_cases(): void
         }
     }
     </style>
+
+    <!-- Messages & Files Image Lightbox -->
+    <div class="modal fade" id="messagesFilesImageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Image Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="messagesFilesImagePreview" src="" class="img-fluid" alt="Image preview">
+                    <div id="messagesFilesImageCaption" class="mt-2 small text-muted"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="downloadMessagesFilesImage()">Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages & Files PDF Modal -->
+    <div class="modal fade" id="messagesFilesPdfModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">PDF Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="messagesFilesPdfFrame" src="" title="PDF Preview" style="width: 100%; height: 100%; border: 0;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script>
     // Global functions for category assignment
@@ -1351,6 +1393,76 @@ function app_page_cases(): void
         div.textContent = text;
         return div.innerHTML;
     }
+
+    function openMessagesFilesImageLightbox(trigger) {
+        const imageUrl = trigger.getAttribute('data-image-url') || '';
+        const caption = trigger.getAttribute('data-image-caption') || '';
+        if (!imageUrl) {
+            return;
+        }
+
+        const imageEl = document.getElementById('messagesFilesImagePreview');
+        const captionEl = document.getElementById('messagesFilesImageCaption');
+        if (!imageEl || !captionEl) {
+            return;
+        }
+
+        imageEl.src = imageUrl;
+        captionEl.textContent = caption;
+        captionEl.style.display = caption ? 'block' : 'none';
+
+        window.currentMessagesFilesImage = {
+            url: imageUrl,
+            caption: caption
+        };
+
+        const modal = new bootstrap.Modal(document.getElementById('messagesFilesImageModal'));
+        modal.show();
+    }
+
+    function downloadMessagesFilesImage() {
+        if (!window.currentMessagesFilesImage || !window.currentMessagesFilesImage.url) {
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.href = window.currentMessagesFilesImage.url;
+        link.download = 'image_' + Date.now() + '.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function openMessagesFilesPdfModal(trigger) {
+        const fileUrl = trigger.getAttribute('data-file-url') || '';
+        if (!fileUrl) {
+            return;
+        }
+
+        const isDesktop = window.innerWidth >= 992;
+        if (!isDesktop) {
+            window.open(fileUrl, '_blank', 'noopener');
+            return;
+        }
+
+        const frame = document.getElementById('messagesFilesPdfFrame');
+        if (!frame) {
+            return;
+        }
+
+        frame.src = fileUrl;
+        const modal = new bootstrap.Modal(document.getElementById('messagesFilesPdfModal'));
+        modal.show();
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('messagesFilesImageModal'));
+            if (modal) {
+                modal.hide();
+            }
+        }
+    });
     
     document.addEventListener('DOMContentLoaded', function() {
         // View toggle functionality
@@ -1686,9 +1798,34 @@ function app_page_cases(): void
                     Loading messages and files...
                 </div>
             `;
+
+            // Get session ID from the folder element
+            // Escape special CSS selector characters in groupId
+            const escapedGroupId = groupId.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
+            console.log('Looking for folder with groupId:', groupId, 'escaped:', escapedGroupId);
+            const folderElement = document.querySelector(`.open-folder[data-group-id="${escapedGroupId}"]`);
+            console.log('Found button:', folderElement);
+            const sessionId = folderElement ? folderElement.closest('.folder-item').getAttribute('data-session-id') : null;
+            console.log('Session ID found:', sessionId);
+
+            if (!sessionId) {
+                categoryTree.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
+                        <p>Unable to determine session for this group</p>
+                    </div>
+                `;
+                messagesList.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
+                        <p>Unable to determine session for this group</p>
+                    </div>
+                `;
+                return;
+            }
             
-            // Load category tree via API
-            fetch('/api/whatsapp/categories/tree')
+            // Load category tree via API with group_id parameter to get group-specific counts
+            fetch(`/api/whatsapp/categories/tree${groupId ? '?group_id=' + encodeURIComponent(groupId) + '&session_id=' + encodeURIComponent(sessionId) : ''}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1728,25 +1865,6 @@ function app_page_cases(): void
                         </div>
                     `;
                 });
-            
-            // Get session ID from the folder element
-            // Escape special CSS selector characters in groupId
-            const escapedGroupId = groupId.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
-            console.log('Looking for folder with groupId:', groupId, 'escaped:', escapedGroupId);
-            const folderElement = document.querySelector(`.open-folder[data-group-id="${escapedGroupId}"]`);
-            console.log('Found button:', folderElement);
-            const sessionId = folderElement ? folderElement.closest('.folder-item').getAttribute('data-session-id') : null;
-            console.log('Session ID found:', sessionId);
-            
-            if (!sessionId) {
-                messagesList.innerHTML = `
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
-                        <p>Unable to determine session for this group</p>
-                    </div>
-                `;
-                return;
-            }
             
             // Load messages and files for this group via API
             fetch(`/api/whatsapp/groups/${encodeURIComponent(groupId)}/messages?session_id=${encodeURIComponent(sessionId)}&limit=50`)
@@ -1946,25 +2064,31 @@ function app_page_cases(): void
                     `;
                     return;
                 }
+
+                messages.sort((a, b) => {
+                    const timeA = a.timestamp ? parseInt(a.timestamp, 10) : 0;
+                    const timeB = b.timestamp ? parseInt(b.timestamp, 10) : 0;
+                    return timeB - timeA;
+                });
                 
                 let html = '<div class="message-file-list">';
                 
                 // Get current filter
                 const filter = document.querySelector('[data-filter].active')?.getAttribute('data-filter') || 'all';
                 
-                // Separate messages and files
-                const textMessages = messages.filter(m => !m.message_type || m.message_type === 'chat');
-                const files = messages.filter(m => m.message_type && m.message_type !== 'chat');
-                
-                // Apply filter
-                if (filter === 'all' || filter === 'messages') {
-                    textMessages.forEach(message => {
+                const isTextMessage = (item) => !item.message_type || item.message_type === 'chat';
+
+                // Apply filter while preserving timestamp order
+                if (filter === 'all') {
+                    messages.forEach(item => {
+                        html += isTextMessage(item) ? renderMessageItem(item) : renderFileItem(item);
+                    });
+                } else if (filter === 'messages') {
+                    messages.filter(isTextMessage).forEach(message => {
                         html += renderMessageItem(message);
                     });
-                }
-                
-                if (filter === 'all' || filter === 'files') {
-                    files.forEach(file => {
+                } else if (filter === 'files') {
+                    messages.filter(item => !isTextMessage(item)).forEach(file => {
                         html += renderFileItem(file);
                     });
                 }
@@ -2149,6 +2273,14 @@ function app_page_cases(): void
                 // Convert timestamp from milliseconds to Date object
                 const timestamp = file.timestamp ? new Date(parseInt(file.timestamp)) : new Date();
                 const timeStr = timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString();
+                const imageUrl = (file.message_type === 'image' || file.message_type === 'sticker')
+                    ? (file.media_url ? escapeHtml(file.media_url) : (file.content ? `data:image/jpeg;base64,${escapeHtml(file.content)}` : ''))
+                    : '';
+                const audioUrl = (file.message_type === 'audio' && file.media_url)
+                    ? escapeHtml(file.media_url)
+                    : '';
+                const audioTranscript = file.ai_describe ? escapeHtml(file.ai_describe) : '';
+                const imageCaption = escapeHtml(file.media_caption || file.caption || '');
                 
                 let html = '<div class="file-item mb-3 p-3 border rounded" data-message-id="' + file.id + '">';
                 html += '<div class="d-flex align-items-start">';
@@ -2157,6 +2289,9 @@ function app_page_cases(): void
                 // File type icon
                 let iconClass = 'fas fa-file';
                 let iconColor = '#6c757d';
+                const fileNameSource = (file.file_name || (file.media_url ? file.media_url.split('?')[0] : '') || file.media_caption || file.content || '').toString();
+                const extensionMatch = fileNameSource.toLowerCase().match(/\.([a-z0-9]+)$/);
+                const fileExt = extensionMatch ? extensionMatch[1] : '';
                 
                 switch (file.message_type) {
                     case 'image':
@@ -2172,8 +2307,26 @@ function app_page_cases(): void
                         iconColor = '#6f42c1';
                         break;
                     case 'document':
-                        iconClass = 'fas fa-file-pdf';
-                        iconColor = '#dc3545';
+                        if (['pdf'].includes(fileExt)) {
+                            iconClass = 'fas fa-file-pdf';
+                            iconColor = '#dc3545';
+                        } else if (['doc', 'docx'].includes(fileExt)) {
+                            iconClass = 'fas fa-file-word';
+                            iconColor = '#2b579a';
+                        } else if (['xls', 'xlsx'].includes(fileExt)) {
+                            iconClass = 'fas fa-file-excel';
+                            iconColor = '#217346';
+                        } else if (['txt'].includes(fileExt)) {
+                            iconClass = 'fas fa-file-alt';
+                            iconColor = '#6c757d';
+                        } else {
+                            iconClass = 'fas fa-file-alt';
+                            iconColor = '#6c757d';
+                        }
+                        break;
+                    case 'sticker':
+                        iconClass = 'fas fa-sticky-note';
+                        iconColor = '#20c997';
                         break;
                 }
                 
@@ -2184,34 +2337,99 @@ function app_page_cases(): void
                 
                 // File name
                 let fileName = 'File';
-                if (file.media_caption) {
+                if (file.file_name) {
+                    fileName = escapeHtml(file.file_name);
+                } else if (file.message_type === 'document' && file.media_url) {
+                    const urlName = file.media_url.split('?')[0].split('/').pop();
+                    if (urlName) {
+                        fileName = escapeHtml(urlName);
+                    }
+                } else if (file.media_caption) {
                     fileName = escapeHtml(file.media_caption);
+                } else if (file.message_type === 'sticker') {
+                    fileName = 'Sticker';
                 } else if (file.content) {
                     fileName = escapeHtml(file.content.substring(0, 50)) + '...';
                 }
+                const fileCaption = file.message_type === 'document'
+                    ? escapeHtml(file.media_caption || file.caption || '')
+                    : '';
                 
+                const rawFileName = fileName;
+                let displayFileName = rawFileName;
+                if (rawFileName.length > 10) {
+                    displayFileName = rawFileName.slice(-10);
+                }
+
                 html += '<div>';
-                html += `<h6 class="mb-1">${fileName}</h6>`;
+                html += `<h6 class="mb-1" title="${rawFileName}">${displayFileName}</h6>`;
+                if (fileCaption) {
+                    html += `<div class="small text-muted">${fileCaption}</div>`;
+                }
                 html += `<small class="text-muted">${timeStr}</small>`;
                 html += '</div>';
                 
-                 // Three dots dropdown menu for category assignment
-                 html += '<div class="dropdown">';
-                 html += '<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">';
-                 html += '<i class="fas fa-ellipsis-v"></i>';
-                 html += '</button>';
-                 html += '<ul class="dropdown-menu dropdown-menu-end">';
-                 html += '<li><h6 class="dropdown-header">Assign to Category</h6></li>';
-                 html += '<li><a class="dropdown-item no-category-item" href="#" data-message-id="' + file.id + '">No Category</a></li>';
-                 html += '<li><hr class="dropdown-divider"></li>';
-                 html += '<li><a class="dropdown-item category-loading-item" href="#" data-message-id="' + file.id + '">Loading categories...</a></li>';
-                 html += '</ul>';
-                 html += '</div>';
+                html += '<div class="d-flex align-items-center">';
+                if (imageUrl) {
+                    html += `<button class="btn btn-sm btn-outline-secondary me-2" type="button" title="View image" data-image-url="${imageUrl}" data-image-caption="${imageCaption}" onclick="openMessagesFilesImageLightbox(this)">`;
+                    html += '<i class="fas fa-eye"></i>';
+                    html += '</button>';
+                }
+                
+                // Three dots dropdown menu for category assignment
+                html += '<div class="dropdown">';
+                html += '<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">';
+                html += '<i class="fas fa-ellipsis-v"></i>';
+                html += '</button>';
+                html += '<ul class="dropdown-menu dropdown-menu-end">';
+                html += '<li><h6 class="dropdown-header">Assign to Category</h6></li>';
+                html += '<li><a class="dropdown-item no-category-item" href="#" data-message-id="' + file.id + '">No Category</a></li>';
+                html += '<li><hr class="dropdown-divider"></li>';
+                html += '<li><a class="dropdown-item category-loading-item" href="#" data-message-id="' + file.id + '">Loading categories...</a></li>';
+                html += '</ul>';
+                html += '</div>';
+                html += '</div>';
                 
                 html += '</div>';
                 
                 // Sender info
                 html += `<p class="mb-1 text-muted">From: ${escapeHtml(file.sender_name || file.sender_number || 'Unknown')}</p>`;
+
+                if (file.message_type === 'document' && file.media_url) {
+                    const docUrl = escapeHtml(file.media_url);
+                    const isPdf = fileExt === 'pdf';
+                    html += '<div class="mt-2">';
+                    if (isPdf) {
+                        html += `<button class="btn btn-sm btn-outline-secondary" type="button" data-file-url="${docUrl}" onclick="openMessagesFilesPdfModal(this)">`;
+                        html += '<i class="fas fa-file-pdf me-1"></i>View PDF';
+                        html += '</button>';
+                    } else {
+                        html += `<a class="btn btn-sm btn-outline-secondary" href="${docUrl}" target="_blank" rel="noopener">`;
+                        html += '<i class="fas fa-download me-1"></i>Open document';
+                        html += '</a>';
+                    }
+                    html += '</div>';
+                }
+
+                if (file.message_type === 'audio') {
+                    html += '<div class="mt-2">';
+                    if (audioUrl) {
+                        html += `<audio controls preload="metadata" style="width: 100%; max-width: 320px;">`;
+                        html += `<source src="${audioUrl}">`;
+                        html += 'Your browser does not support the audio element.';
+                        html += '</audio>';
+                    }
+                    if (audioTranscript) {
+                        html += `<div class="small text-muted mt-1">${audioTranscript}</div>`;
+                    }
+                    html += '</div>';
+                }
+
+                if (imageUrl) {
+                    html += '<div class="mt-2">';
+                    html += `<img src="${imageUrl}" class="img-fluid rounded message-file-thumb" alt="Image" data-image-url="${imageUrl}" data-image-caption="${imageCaption}" onclick="openMessagesFilesImageLightbox(this)">`;
+                    html += '</div>';
+                }
                 
                 // Category badge if available
                 if (file.category_name) {
@@ -2347,6 +2565,24 @@ function app_page_not_found(): void
     app_render_footer();
 }
 
+function app_page_server_error(?string $reference = null): void
+{
+    http_response_code(500);
+    app_render_head('Server Error');
+
+    $theme = app_theme();
+
+    if ($theme === 'softing-v2.0') {
+        app_render_server_error_softing($reference);
+    } elseif ($theme === 'Anada-v2.0') {
+        app_render_server_error_anada($reference);
+    } else {
+        app_render_server_error_sasoft($reference);
+    }
+
+    app_render_footer();
+}
+
 function app_render_home_sasoft(): void
 {
     ?>
@@ -2427,6 +2663,14 @@ function app_render_not_found_sasoft(): void
     <?php
 }
 
+function app_render_server_error_sasoft(?string $reference = null): void
+{
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
+    ?>
+    <div class="error-page-area default-padding"><div class="container"><div class="row align-center"><div class="col-lg-6"><div class="error-box"><h1>500</h1><h2>Something went wrong on our side.</h2><p>Please try again or contact support.</p><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div>
+    <?php
+}
+
 function app_render_home_softing(): void
 {
     ?>
@@ -2495,6 +2739,14 @@ function app_render_not_found_softing(): void
     <?php
 }
 
+function app_render_server_error_softing(?string $reference = null): void
+{
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
+    ?>
+    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>500 - Server Error</h2><p>We hit a problem while processing your request.</p><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
+    <?php
+}
+
 function app_render_home_anada(): void
 {
     ?>
@@ -2560,5 +2812,13 @@ function app_render_not_found_anada(): void
 {
     ?>
     <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>404 - Page Not Found</h2><p>The route does not exist.</p><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
+    <?php
+}
+
+function app_render_server_error_anada(?string $reference = null): void
+{
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
+    ?>
+    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>500 - Server Error</h2><p>We hit a problem while processing your request.</p><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
     <?php
 }

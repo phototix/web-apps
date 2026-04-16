@@ -201,22 +201,53 @@ function app_whatsapp_get_user_categories(int $userId, ?int $parentId = null, bo
     return $stmt->fetchAll();
 }
 
-function app_whatsapp_get_category_tree(int $userId): array {
+function app_whatsapp_get_category_tree(int $userId, ?string $whatsappGroupId = null, ?int $sessionId = null, ?int $groupId = null): array {
     $pdo = app_db();
     
-    // Get all categories for user
-    $stmt = $pdo->prepare("
+    // Build the base query
+    $query = "
         SELECT c.*, 
                p.name as parent_name,
-               (SELECT COUNT(*) FROM categories WHERE parent_id = c.id) as subcategory_count,
-               (SELECT COUNT(*) FROM group_messages WHERE category_id = c.id) as message_count,
-               (SELECT COUNT(*) FROM whatsapp_groups WHERE category_id = c.id) as group_count
+               (SELECT COUNT(*) FROM categories WHERE parent_id = c.id) as subcategory_count
+    ";
+    
+    // Add message_count based on whether whatsappGroupId and sessionId are provided
+    if ($whatsappGroupId && $sessionId) {
+        // Count messages in the specific group tagged with this category
+        $query .= ", (SELECT COUNT(*) FROM group_messages WHERE category_id = c.id AND group_id = :whatsapp_group_id AND session_id = :session_id) as message_count";
+    } else {
+        // Count all messages tagged with this category
+        $query .= ", (SELECT COUNT(*) FROM group_messages WHERE category_id = c.id) as message_count";
+    }
+    
+    // Add group_count based on whether groupId is provided
+    if ($groupId) {
+        // When specific group ID is provided, check if this group is tagged with the category
+        // This will be 1 if the group has this category, 0 otherwise
+        $query .= ", (SELECT COUNT(*) FROM whatsapp_groups WHERE category_id = c.id AND id = :group_id) as group_count";
+    } else {
+        // Count all groups tagged with this category
+        $query .= ", (SELECT COUNT(*) FROM whatsapp_groups WHERE category_id = c.id) as group_count";
+    }
+    
+    $query .= "
         FROM categories c
         LEFT JOIN categories p ON c.parent_id = p.id
         WHERE c.user_id = :user_id AND c.is_active = TRUE
         ORDER BY c.parent_id IS NULL DESC, c.sort_order ASC, c.name ASC
-    ");
-    $stmt->execute(['user_id' => $userId]);
+    ";
+    
+    $params = ['user_id' => $userId];
+    if ($whatsappGroupId && $sessionId) {
+        $params['whatsapp_group_id'] = $whatsappGroupId;
+        $params['session_id'] = $sessionId;
+    }
+    if ($groupId) {
+        $params['group_id'] = $groupId;
+    }
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
     $categories = $stmt->fetchAll();
     
     // Build tree structure

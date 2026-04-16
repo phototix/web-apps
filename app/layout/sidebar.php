@@ -6,6 +6,9 @@ function app_render_dashboard_sidebar(): void
 {
     $currentPath = $_SERVER['REQUEST_URI'] ?? '/welcome';
     $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : null;
+    $effectiveRole = $effectiveUser['role'] ?? null;
+    $isChildUser = $user && ($user['role'] ?? null) === 'users';
     ?>
     <aside class="dashboard-sidebar">
         <div class="sidebar-sticky pt-3">
@@ -32,7 +35,7 @@ function app_render_dashboard_sidebar(): void
                             <span>Groups Chats</span>
                         </a>
                     </li>
-                    <?php if ($user && $user['role'] !== 'users'): ?>
+                    <?php if (!$isChildUser && $effectiveRole && $effectiveRole !== 'users'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/whatsapp-connect') !== false ? 'active' : '' ?>" href="/whatsapp-connect">
                             <i class="fab fa-whatsapp"></i>
@@ -40,7 +43,7 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <?php endif; ?>
-                    <?php if ($user && in_array($user['role'], ['admin', 'superadmin'])): ?>
+                    <?php if (!$isChildUser && $effectiveRole && in_array($effectiveRole, ['admin', 'superadmin'])): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/admin/my-users') !== false ? 'active' : '' ?>" href="/admin/my-users">
                             <i class="fas fa-user-friends"></i>
@@ -48,7 +51,7 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <?php endif; ?>
-                    <?php if ($user && $user['role'] === 'superadmin'): ?>
+                    <?php if (!$isChildUser && $effectiveRole === 'superadmin'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/admin/users') !== false ? 'active' : '' ?>" href="/admin/users">
                             <i class="fas fa-user-cog"></i>

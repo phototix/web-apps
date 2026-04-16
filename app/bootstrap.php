@@ -66,5 +66,96 @@ require_once __DIR__ . '/router.php';
 require_once __DIR__ . '/whatsapp.php';
 require_once __DIR__ . '/webhooks.php';
 
+function app_is_api_request(): bool
+{
+    $path = app_request_path();
+
+    return str_starts_with($path, '/api/');
+}
+
+function app_clear_output_buffers(): void
+{
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+}
+
+function app_render_fallback_server_error(): void
+{
+    http_response_code(500);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Server Error</title></head>';
+    echo '<body><h1>500 - Server Error</h1><p>Something went wrong.</p></body></html>';
+}
+
+function app_handle_exception(Throwable $exception): void
+{
+    static $handling = false;
+
+    if ($handling) {
+        return;
+    }
+
+    $handling = true;
+    $errorId = bin2hex(random_bytes(6));
+
+    app_log('Unhandled exception', 'ERROR', [
+        'error_id' => $errorId,
+        'message' => $exception->getMessage(),
+        'file' => $exception->getFile(),
+        'line' => $exception->getLine(),
+        'trace' => $exception->getTraceAsString(),
+        'path' => $_SERVER['REQUEST_URI'] ?? '',
+        'method' => $_SERVER['REQUEST_METHOD'] ?? ''
+    ]);
+
+    if (app_is_api_request()) {
+        app_clear_output_buffers();
+        require_once __DIR__ . '/api.php';
+        api_internal_error('Internal server error');
+        return;
+    }
+
+    app_clear_output_buffers();
+
+    if (function_exists('app_page_server_error')) {
+        app_page_server_error($errorId);
+        return;
+    }
+
+    app_render_fallback_server_error();
+}
+
+function app_handle_shutdown(): void
+{
+    $error = error_get_last();
+
+    if ($error === null) {
+        return;
+    }
+
+    $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR];
+
+    if (!in_array($error['type'] ?? 0, $fatalTypes, true)) {
+        return;
+    }
+
+    $exception = new ErrorException(
+        $error['message'] ?? 'Fatal error',
+        0,
+        $error['type'] ?? E_ERROR,
+        $error['file'] ?? 'unknown',
+        $error['line'] ?? 0
+    );
+
+    app_handle_exception($exception);
+}
+
+if (php_sapi_name() !== 'cli') {
+    ob_start();
+    set_exception_handler('app_handle_exception');
+    register_shutdown_function('app_handle_shutdown');
+}
+
 // Log incoming request
 app_log_request();

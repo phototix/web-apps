@@ -13,7 +13,7 @@ CREATE TABLE group_messages (
   message_id VARCHAR(255) NOT NULL,
   sender_number VARCHAR(50) NOT NULL,
   sender_name VARCHAR(255) NULL,
-  message_type ENUM('chat', 'image', 'video', 'audio', 'document', 'location', 'contact', 'poll', 'other') DEFAULT 'chat',
+  message_type ENUM('chat', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'contact', 'poll', 'other') DEFAULT 'chat',
   content TEXT NULL,
   media_url VARCHAR(500) NULL,
   media_caption TEXT NULL,

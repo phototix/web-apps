@@ -41,7 +41,7 @@ function app_asset_version(): string
     static $version = null;
     
     if ($version === null) {
-        $version = '20260410122541'; // Default version, updated by bump_version.php
+        $version = '20260416122609'; // Default version, updated by bump_version.php
     }
     
     return $version;

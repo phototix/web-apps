@@ -12,7 +12,7 @@ UPDATE group_messages SET message_type = 'chat' WHERE message_type = 'text';
 
 -- Step 3: If you need to completely change the ENUM (removing 'text'), run this:
 -- ALTER TABLE group_messages 
--- MODIFY COLUMN message_type ENUM('chat', 'image', 'video', 'audio', 'document', 'location', 'contact', 'poll', 'other') DEFAULT 'chat';
+-- MODIFY COLUMN message_type ENUM('chat', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'contact', 'poll', 'other') DEFAULT 'chat';
 
 -- Note: The ALTER TABLE statement above will fail if there are any records with message_type = 'text'
 -- Make sure to run the UPDATE statement first to convert all 'text' to 'chat'

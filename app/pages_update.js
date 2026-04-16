@@ -18,9 +18,30 @@
                     Loading messages and files...
                 </div>
             `;
+
+            // Get session ID from the folder element
+            const escapedGroupId = groupId.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
+            const folderElement = document.querySelector(`.open-folder[data-group-id="${escapedGroupId}"]`);
+            const sessionId = folderElement ? folderElement.closest('.folder-item').getAttribute('data-session-id') : null;
+
+            if (!sessionId) {
+                categoryTree.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
+                        <p>Unable to determine session for this group</p>
+                    </div>
+                `;
+                messagesList.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
+                        <p>Unable to determine session for this group</p>
+                    </div>
+                `;
+                return;
+            }
             
-            // Load category tree
-            fetch('/api/whatsapp/category-tree')
+            // Load category tree with group_id parameter to get group-specific counts
+            fetch(`/api/whatsapp/categories/tree${groupId ? '?group_id=' + encodeURIComponent(groupId) + '&session_id=' + encodeURIComponent(sessionId) : ''}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

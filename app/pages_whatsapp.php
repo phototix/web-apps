@@ -7,6 +7,8 @@ declare(strict_types=1);
 function app_page_whatsapp_connect(): void {
     app_require_auth();
     $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = $effectiveUser['id'] ?? 0;
     
     app_render_head('WhatsApp Connect');
     app_render_dashboard_start($user);
@@ -289,7 +291,9 @@ function app_page_whatsapp_connect(): void {
          });
          
          // Handle session creation with SweetAlert
-         document.getElementById('createSessionBtn')?.addEventListener('click', function() {
+         const createSessionBtn = document.getElementById('createSessionBtn');
+         if (createSessionBtn) {
+             createSessionBtn.addEventListener('click', function() {
              const button = this;
              const originalText = button.innerHTML;
              
@@ -345,7 +349,8 @@ function app_page_whatsapp_connect(): void {
                      button.innerHTML = originalText;
                  }
              });
-         });
+             });
+         }
      });
      </script>
     <?php
@@ -357,13 +362,15 @@ function app_page_whatsapp_connect(): void {
 function app_page_groups(): void {
     app_require_auth();
     $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = $effectiveUser['id'] ?? 0;
     
     app_render_head('WhatsApp Groups');
     app_render_dashboard_start($user);
     
     // Get user's WhatsApp sessions and groups
-    $sessions = app_whatsapp_get_user_sessions($user['id']);
-    $groups = app_whatsapp_get_user_groups($user['id']);
+    $sessions = app_whatsapp_get_user_sessions($effectiveUserId);
+    $groups = app_whatsapp_get_user_groups($effectiveUserId);
     
     // Determine selected session and group from query params
     $selectedSessionName = $_GET['session'] ?? '';
@@ -471,7 +478,7 @@ function app_page_groups(): void {
                                   <i class="fas fa-sync-alt"></i>
                               </button>
                          <?php endif; ?>
-                         <?php if (app_can_create_group($user)): ?>
+                          <?php if (app_can_create_group($effectiveUser)): ?>
                              <button class="btn btn-sm btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal" title="Create new group">
                                  <i class="fas fa-plus"></i>
                              </button>
@@ -587,27 +594,85 @@ function app_page_groups(): void {
                                              <?php if (!$message['is_from_me']): ?>
                                                  <div class="small fw-bold mb-1"><?= htmlspecialchars($message['sender_name'] ?? $message['sender_number']) ?></div>
                                              <?php endif; ?>
-                                              <?php if ($message['message_type'] === 'image' && !empty($message['content'])): ?>
-                                                  <div class="mt-1">
-                                                      <img src="data:image/jpeg;base64,<?= htmlspecialchars($message['content']) ?>" 
-                                                           class="img-fluid rounded message-image" 
-                                                           style="max-height: 150px; cursor: pointer;"
-                                                           data-base64="<?= htmlspecialchars($message['content']) ?>"
-                                                           alt="Image"
-                                                           onclick="enlargeImage(this)">
-                                                      <?php if (!empty($message['media_caption']) || !empty($message['caption'])): ?>
-                                                          <div class="small mt-1"><?= htmlspecialchars($message['media_caption'] ?? $message['caption'] ?? '') ?></div>
-                                                      <?php endif; ?>
-                                                  </div>
-                                              <?php elseif ($message['media_url']): ?>
-                                                  <div class="mt-1">
-                                                      <img src="<?= htmlspecialchars($message['media_url']) ?>" 
-                                                           class="img-fluid rounded" 
-                                                           style="max-height: 150px;">
-                                                      <?php if ($message['media_caption']): ?>
-                                                          <div class="small mt-1"><?= htmlspecialchars($message['media_caption']) ?></div>
-                                                      <?php endif; ?>
-                                                  </div>
+                                              <?php if ($message['message_type'] === 'sticker'): ?>
+                                                  <?php
+                                                      $stickerUrl = $message['media_url'] ?: (!empty($message['content']) ? 'data:image/jpeg;base64,' . $message['content'] : '');
+                                                  ?>
+                                                  <?php if (!empty($stickerUrl)): ?>
+                                                       <div class="mt-1">
+                                                           <img src="<?= htmlspecialchars($stickerUrl) ?>" 
+                                                                class="img-fluid rounded message-image" 
+                                                                style="max-height: 120px; cursor: pointer;"
+                                                                data-image-url="<?= htmlspecialchars($stickerUrl) ?>"
+                                                                alt="Sticker"
+                                                                onclick="enlargeImage(this)">
+                                                           <div class="small mt-1 text-muted">Sticker</div>
+                                                       </div>
+                                                  <?php endif; ?>
+                                              <?php elseif ($message['message_type'] === 'image'): ?>
+                                                  <?php
+                                                      $imageUrl = $message['media_url'] ?: (!empty($message['content']) ? 'data:image/jpeg;base64,' . $message['content'] : '');
+                                                  ?>
+                                                  <?php if (!empty($imageUrl)): ?>
+                                                       <div class="mt-1">
+                                                           <img src="<?= htmlspecialchars($imageUrl) ?>" 
+                                                                class="img-fluid rounded message-image" 
+                                                                style="max-height: 150px; cursor: pointer;"
+                                                                data-image-url="<?= htmlspecialchars($imageUrl) ?>"
+                                                                alt="Image"
+                                                                onclick="enlargeImage(this)">
+                                                           <?php if (!empty($message['media_caption']) || !empty($message['caption'])): ?>
+                                                               <div class="small mt-1"><?= htmlspecialchars($message['media_caption'] ?? $message['caption'] ?? '') ?></div>
+                                                           <?php endif; ?>
+                                                       </div>
+                                                  <?php endif; ?>
+                                               <?php elseif ($message['message_type'] === 'audio'): ?>
+                                                   <?php
+                                                       $audioUrl = $message['media_url'] ?? '';
+                                                       $audioTranscript = $message['ai_describe'] ?? '';
+                                                   ?>
+                                                   <div class="mt-1">
+                                                       <?php if (!empty($audioUrl)): ?>
+                                                           <audio controls preload="metadata" style="width: 100%; max-width: 320px;">
+                                                               <source src="<?= htmlspecialchars($audioUrl) ?>">
+                                                               Your browser does not support the audio element.
+                                                           </audio>
+                                                       <?php endif; ?>
+                                                       <?php if (!empty($audioTranscript)): ?>
+                                                           <div class="small mt-1 <?= $message['is_from_me'] ? 'text-white-50' : 'text-muted' ?>">
+                                                               <strong>Transcribed:</strong><br>
+                                                               <?= htmlspecialchars($audioTranscript) ?>
+                                                           </div>
+                                                       <?php endif; ?>
+                                                   </div>
+                                               <?php elseif ($message['message_type'] === 'document' && !empty($message['media_url'])): ?>
+                                                  <?php
+                                                      $docPath = parse_url($message['media_url'], PHP_URL_PATH);
+                                                      $docExt = strtolower(pathinfo($docPath ?? '', PATHINFO_EXTENSION));
+                                                      $isPdf = $docExt === 'pdf';
+                                                      $docCaption = $message['media_caption'] ?? $message['caption'] ?? '';
+                                                  ?>
+                                                   <div class="mt-1">
+                                                       <?php if ($isPdf): ?>
+                                                           <button class="btn btn-sm btn-outline-secondary pdf-preview-trigger" type="button" data-file-url="<?= htmlspecialchars($message['media_url']) ?>">
+                                                               <i class="fas fa-file-pdf me-1"></i>View PDF
+                                                           </button>
+                                                       <?php else: ?>
+                                                           <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars($message['media_url']) ?>" target="_blank" rel="noopener">
+                                                               <i class="fas fa-download me-1"></i>Open document
+                                                           </a>
+                                                       <?php endif; ?>
+                                                       <div class="small mt-1">&nbsp;</div>
+                                                   </div>
+                                               <?php elseif ($message['media_url']): ?>
+                                                   <div class="mt-1">
+                                                       <img src="<?= htmlspecialchars($message['media_url']) ?>" 
+                                                            class="img-fluid rounded" 
+                                                            style="max-height: 150px;">
+                                                       <?php if ($message['media_caption']): ?>
+                                                           <div class="small mt-1"><?= htmlspecialchars($message['media_caption']) ?></div>
+                                                       <?php endif; ?>
+                                                   </div>
                                               <?php else: ?>
                                                   <div class="mb-1"><?= htmlspecialchars($message['content']) ?></div>
                                               <?php endif; ?>
@@ -851,12 +916,14 @@ function app_page_groups(): void {
         setupSyncButton(document.getElementById('syncGroupsBtn'));
         setupSyncButton(document.getElementById('syncGroupsInline'));
         
-         const selectedGroupId = document.querySelector('#messageForm')?.dataset.groupId;
+         const messageFormElement = document.querySelector('#messageForm');
+         const selectedGroupId = messageFormElement ? messageFormElement.dataset.groupId : null;
+         const groupNameElement = document.querySelector('h6.fw-bold');
          
          // Debug: Log group selection
          console.log('Group selected:', {
              groupId: selectedGroupId,
-             groupName: document.querySelector('h6.fw-bold')?.textContent,
+             groupName: groupNameElement ? groupNameElement.textContent : '',
              hasMessagesContainer: !!document.getElementById('messagesList'),
              messageCount: document.querySelectorAll('#messagesList .message').length
          });
@@ -883,7 +950,10 @@ function app_page_groups(): void {
                             const tempMsg = document.querySelector(`#message-${data.id}`);
                             if (tempMsg) {
                                 tempMsg.classList.remove('temp-message');
-                                tempMsg.querySelector('.fa-clock')?.remove();
+                                const clockIcon = tempMsg.querySelector('.fa-clock');
+                                if (clockIcon) {
+                                    clockIcon.remove();
+                                }
                             }
                             // Release grey-out state
                             setMessageSendingState(false);
@@ -894,9 +964,8 @@ function app_page_groups(): void {
                } else {
                 console.warn('RealtimeClient not available. Real-time updates disabled.');
               }
-             }
-             
-             // Message form submission
+              
+              // Message form submission
             document.getElementById('messageForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const input = document.getElementById('messageInput');
@@ -1118,7 +1187,7 @@ function app_page_groups(): void {
                        scrollTop: container.scrollTop,
                        styleHeight: container.style.height,
                        computedStyle: window.getComputedStyle(container).height,
-                       parentHeight: container.parentElement?.offsetHeight,
+                       parentHeight: container.parentElement ? container.parentElement.offsetHeight : null,
                        isScrollable: container.scrollHeight > container.clientHeight
                    });
                    
@@ -1210,7 +1279,9 @@ function app_page_groups(): void {
         }
         
         // Create group functionality
-        document.getElementById('createGroupBtn')?.addEventListener('click', async function() {
+        const createGroupBtn = document.getElementById('createGroupBtn');
+        if (createGroupBtn) {
+            createGroupBtn.addEventListener('click', async function() {
             const form = document.getElementById('createGroupForm');
             const formData = new FormData(form);
             const data = {
@@ -1246,7 +1317,8 @@ function app_page_groups(): void {
                      confirmButtonColor: '#3085d6',
                  });
             }
-        });
+            });
+        }
         
         // Helper functions
         async function sendMessage(groupId, message, tempMessageId = null) {
@@ -1296,7 +1368,8 @@ function app_page_groups(): void {
                   const messageTime = data.timestamp || now;
                   
                   for (const tempMsg of tempMessages) {
-                      const tempContent = tempMsg.querySelector('.mb-1')?.textContent;
+                       const tempContentElement = tempMsg.querySelector('.mb-1');
+                       const tempContent = tempContentElement ? tempContentElement.textContent : '';
                       if (tempContent === data.content) {
                           // Found matching temp message, replace it with the real one
                           tempMsg.remove();
@@ -1314,13 +1387,50 @@ function app_page_groups(): void {
               
               const timestamp = new Date(data.timestamp);
               const timeStr = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              const imageUrl = data.media_url
+                  ? escapeHtml(data.media_url)
+                  : (data.content ? `data:image/jpeg;base64,${escapeHtml(data.content)}` : '');
+              const documentExt = (data.media_url || '').split('?')[0].split('.').pop().toLowerCase();
+              const isPdf = documentExt === 'pdf';
+              const stickerUrl = (data.message_type === 'sticker') ? imageUrl : '';
+              const documentHtml = (data.message_type === 'document' && data.media_url)
+                  ? '<div class="mt-1">' +
+                      (isPdf
+                          ? '<button class="btn btn-sm btn-outline-secondary" type="button" data-file-url="' + escapeHtml(data.media_url) + '" onclick="openWhatsappPdfModal(this)"><i class="fas fa-file-pdf me-1"></i>View PDF</button>'
+                          : '<a class="btn btn-sm btn-outline-secondary" href="' + escapeHtml(data.media_url) + '" target="_blank" rel="noopener"><i class="fas fa-download me-1"></i>Open document</a>'
+                      ) +
+                      '<div class="small mt-1">&nbsp;</div>' +
+                    '</div>'
+                  : '';
+              const imageCaption = data.media_caption || data.caption || '';
+              let messageContentHtml = '';
+              if (data.message_type === 'sticker' && stickerUrl) {
+                  messageContentHtml = '<div class="mt-1">' +
+                      '<img src="' + stickerUrl + '" class="img-fluid rounded message-image" style="max-height: 120px; cursor: pointer;" data-image-url="' + stickerUrl + '" alt="Sticker" onclick="enlargeImage(this)">' +
+                      '<div class="small mt-1 text-muted">Sticker</div>' +
+                      '</div>';
+              } else if (data.message_type === 'image' && imageUrl) {
+                  messageContentHtml = '<div class="mt-1">' +
+                      '<img src="' + imageUrl + '" class="img-fluid rounded message-image" style="max-height: 150px; cursor: pointer;" data-image-url="' + imageUrl + '" alt="Image" onclick="enlargeImage(this)">' +
+                      (imageCaption ? '<div class="small mt-1">' + escapeHtml(imageCaption) + '</div>' : '') +
+                      '</div>';
+              } else if (documentHtml) {
+                  messageContentHtml = documentHtml;
+              } else if (data.media_url) {
+                  messageContentHtml = '<div class="mt-1">' +
+                      '<img src="' + escapeHtml(data.media_url) + '" class="img-fluid rounded" style="max-height: 150px;">' +
+                      (data.media_caption ? '<div class="small mt-1">' + escapeHtml(data.media_caption) + '</div>' : '') +
+                      '</div>';
+              } else {
+                  messageContentHtml = '<div class="mb-1">' + escapeHtml(data.content || '') + '</div>';
+              }
               
               messageDiv.innerHTML = `
                   <div class="d-flex ${data.is_from_me ? 'justify-content-end' : ''} align-items-end">
                       ${!data.is_from_me ? `
                           <div class="me-2">
                               <div class="avatar-xs bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 12px;">
-                                  ${(data.sender_name?.charAt(0) || data.sender_number?.charAt(0) || '?').toUpperCase()}
+                                   ${((data.sender_name ? data.sender_name.charAt(0) : (data.sender_number ? data.sender_number.charAt(0) : '?')) || '?').toUpperCase()}
                               </div>
                           </div>
                       ` : ''}
@@ -1328,28 +1438,7 @@ function app_page_groups(): void {
                           ${!data.is_from_me ? `
                               <div class="small fw-bold mb-1">${escapeHtml(data.sender_name || data.sender_number)}</div>
                           ` : ''}
-                           ${data.message_type === 'image' && data.content ? `
-                               <div class="mt-1">
-                                   <img src="data:image/jpeg;base64,${escapeHtml(data.content)}" 
-                                        class="img-fluid rounded message-image" 
-                                        style="max-height: 150px; cursor: pointer;"
-                                        data-base64="${escapeHtml(data.content)}"
-                                        alt="Image"
-                                        onclick="enlargeImage(this)">
-                                   ${(data.media_caption || data.caption) ? `
-                                       <div class="small mt-1">${escapeHtml(data.media_caption || data.caption || '')}</div>
-                                   ` : ''}
-                               </div>
-                           ` : data.media_url ? `
-                               <div class="mt-1">
-                                   <img src="${escapeHtml(data.media_url)}" class="img-fluid rounded" style="max-height: 150px;">
-                                   ${data.media_caption ? `
-                                       <div class="small mt-1">${escapeHtml(data.media_caption)}</div>
-                                   ` : ''}
-                               </div>
-                           ` : `
-                               <div class="mb-1">${escapeHtml(data.content || '')}</div>
-                           `}
+                           ${messageContentHtml}
                           <div class="small text-end ${data.is_from_me ? 'text-white-50' : 'text-muted'}">
                               ${timeStr}
                           </div>
@@ -1374,31 +1463,50 @@ function app_page_groups(): void {
             const messagesList = document.getElementById('messagesList');
             if (!messagesList) return;
             
-            const messageDiv = document.createElement('div');
-            messageDiv.id = `message-${data.id}`;
-            messageDiv.className = `message mb-2 ${data.is_from_me ? 'text-end' : ''} ${data.is_temp ? 'temp-message' : ''}`;
+             const messageDiv = document.createElement('div');
+             messageDiv.id = `message-${data.id}`;
+             messageDiv.className = `message mb-2 ${data.is_from_me ? 'text-end' : ''} ${data.is_temp ? 'temp-message' : ''}`;
+             
+             const timestamp = new Date(data.timestamp);
+             const timeStr = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+             const imageUrl = data.media_url
+                 ? escapeHtml(data.media_url)
+                 : (data.content ? `data:image/jpeg;base64,${escapeHtml(data.content)}` : '');
+             const documentExt = (data.media_url || '').split('?')[0].split('.').pop().toLowerCase();
+             const isPdf = documentExt === 'pdf';
+             const stickerUrl = (data.message_type === 'sticker') ? imageUrl : '';
+             const documentHtml = (data.message_type === 'document' && data.media_url)
+                 ? '<div class="mt-1">' +
+                     (isPdf
+                         ? '<button class="btn btn-sm btn-outline-secondary pdf-preview-trigger" type="button" data-file-url="' + escapeHtml(data.media_url) + '"><i class="fas fa-file-pdf me-1"></i>View PDF</button>'
+                         : '<a class="btn btn-sm btn-outline-secondary" href="' + escapeHtml(data.media_url) + '" target="_blank" rel="noopener"><i class="fas fa-download me-1"></i>Open document</a>'
+                     ) +
+                     '<div class="small mt-1">&nbsp;</div>' +
+                   '</div>'
+                 : '';
             
-            const timestamp = new Date(data.timestamp);
-            const timeStr = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
+             const imageCaption = data.media_caption || data.caption || '';
+             let messageContentHtml = '';
+             if (data.message_type === 'sticker' && stickerUrl) {
+                 messageContentHtml = '<div class="mt-1">' +
+                     '<img src="' + stickerUrl + '" class="img-fluid rounded message-image" style="max-height: 120px; cursor: pointer; ' + (data.is_temp ? 'opacity: 0.8;' : '') + '" data-image-url="' + stickerUrl + '" alt="Sticker" onclick="enlargeImage(this)">' +
+                     '<div class="small mt-1 text-muted">Sticker</div>' +
+                     '</div>';
+             } else if (data.message_type === 'image' && imageUrl) {
+                 messageContentHtml = '<div class="mt-1">' +
+                     '<img src="' + imageUrl + '" class="img-fluid rounded message-image" style="max-height: 150px; cursor: pointer; ' + (data.is_temp ? 'opacity: 0.8;' : '') + '" data-image-url="' + imageUrl + '" alt="Image" onclick="enlargeImage(this)">' +
+                     (imageCaption ? '<div class="small mt-1">' + escapeHtml(imageCaption) + '</div>' : '') +
+                     '</div>';
+             } else if (documentHtml) {
+                 messageContentHtml = documentHtml;
+             } else {
+                 messageContentHtml = '<div class="mb-1">' + escapeHtml(data.content || '') + '</div>';
+             }
+
              messageDiv.innerHTML = `
                  <div class="d-flex ${data.is_from_me ? 'justify-content-end' : ''} align-items-end">
                      <div class="${data.is_from_me ? 'bg-primary text-white message-bubble sent' : 'bg-light message-bubble received'} px-3 py-2" style="max-width: 65%; ${data.is_temp ? 'opacity: 0.8;' : ''}">
-                         ${data.message_type === 'image' && data.content ? `
-                             <div class="mt-1">
-                                 <img src="data:image/jpeg;base64,${escapeHtml(data.content)}" 
-                                      class="img-fluid rounded message-image" 
-                                      style="max-height: 150px; cursor: pointer; ${data.is_temp ? 'opacity: 0.8;' : ''}"
-                                      data-base64="${escapeHtml(data.content)}"
-                                      alt="Image"
-                                      onclick="enlargeImage(this)">
-                                 ${(data.media_caption || data.caption) ? `
-                                     <div class="small mt-1">${escapeHtml(data.media_caption || data.caption || '')}</div>
-                                 ` : ''}
-                             </div>
-                         ` : `
-                             <div class="mb-1">${escapeHtml(data.content || '')}</div>
-                         `}
+                         ${messageContentHtml}
                          ${data.is_temp ? `
                              <div class="small text-end text-white-50">
                                  <i class="fas fa-clock me-1"></i>${timeStr}
@@ -1493,8 +1601,7 @@ function app_page_groups(): void {
             }
     }
 });
-
-
+</script>
 
 <!-- Simple guaranteed scroll to bottom script -->
 <script>
@@ -1739,26 +1846,45 @@ function app_page_admin_users(): void {
                                         </span>
                                     </td>
                                     <td>
-                                        <form method="POST" class="d-inline">
-                                            <input type="hidden" name="action" value="update_tier">
-                                            <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                                            <select name="tier" class="form-select form-select-sm" 
-                                                    onchange="this.form.submit()" 
-                                                    <?= $u['role'] === 'superadmin' ? 'disabled' : '' ?>>
-                                                <option value="basic" <?= $u['tier'] === 'basic' ? 'selected' : '' ?>>Basic</option>
-                                                <option value="business" <?= $u['tier'] === 'business' ? 'selected' : '' ?>>Business</option>
-                                                <option value="enterprise" <?= $u['tier'] === 'enterprise' ? 'selected' : '' ?>>Enterprise</option>
-                                            </select>
-                                        </form>
+                                        <?php if ($u['role'] === 'users'): ?>
+                                            <span class="text-muted">Inherited from <?= htmlspecialchars($u['parent_name'] ?? 'parent') ?></span>
+                                            <?php if (!empty($u['parent_tier'])): ?>
+                                                <span class="badge bg-secondary ms-1"><?= ucfirst($u['parent_tier']) ?></span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <form method="POST" class="d-inline">
+                                                <input type="hidden" name="action" value="update_tier">
+                                                <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                                                <select name="tier" class="form-select form-select-sm" 
+                                                        onchange="this.form.submit()" 
+                                                        <?= $u['role'] === 'superadmin' ? 'disabled' : '' ?>>
+                                                    <option value="basic" <?= $u['tier'] === 'basic' ? 'selected' : '' ?>>Basic</option>
+                                                    <option value="business" <?= $u['tier'] === 'business' ? 'selected' : '' ?>>Business</option>
+                                                    <option value="enterprise" <?= $u['tier'] === 'enterprise' ? 'selected' : '' ?>>Enterprise</option>
+                                                </select>
+                                            </form>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php 
-                                        $sessionCount = app_whatsapp_count_user_sessions($u['id']);
-                                        $maxSessions = app_tier_limits()[$u['tier']]['max_sessions'] ?? 1;
-                                        ?>
-                                        <span class="<?= $sessionCount >= $maxSessions ? 'text-danger' : 'text-success' ?>">
-                                            <?= $sessionCount ?> / <?= $maxSessions ?>
-                                        </span>
+                                        <?php if ($u['role'] === 'users'): ?>
+                                            <?php
+                                            $parentId = (int) ($u['parent_id'] ?? 0);
+                                            $parentTier = $u['parent_tier'] ?? 'basic';
+                                            $parentSessionCount = $parentId ? app_whatsapp_count_user_sessions($parentId) : 0;
+                                            $parentMaxSessions = app_tier_limits()[$parentTier]['max_sessions'] ?? 1;
+                                            ?>
+                                            <span class="<?= $parentSessionCount >= $parentMaxSessions ? 'text-danger' : 'text-success' ?>">
+                                                <?= $parentSessionCount ?> / <?= $parentMaxSessions ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <?php 
+                                            $sessionCount = app_whatsapp_count_user_sessions($u['id']);
+                                            $maxSessions = app_tier_limits()[$u['tier']]['max_sessions'] ?? 1;
+                                            ?>
+                                            <span class="<?= $sessionCount >= $maxSessions ? 'text-danger' : 'text-success' ?>">
+                                                <?= $sessionCount ?> / <?= $maxSessions ?>
+                                            </span>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                     <td>
@@ -1850,9 +1976,19 @@ function app_page_admin_users(): void {
 function app_get_all_users(): array {
     $pdo = app_db();
     $stmt = $pdo->prepare("
-        SELECT id, name, email, role, tier, created_at 
-        FROM users 
-        ORDER BY created_at DESC
+        SELECT u.id,
+               u.name,
+               u.email,
+               u.role,
+               u.tier,
+               u.parent_id,
+               u.created_at,
+               p.name AS parent_name,
+               p.role AS parent_role,
+               p.tier AS parent_tier
+        FROM users u
+        LEFT JOIN users p ON u.parent_id = p.id
+        ORDER BY u.created_at DESC
     ");
     $stmt->execute();
     return $stmt->fetchAll();
@@ -1860,18 +1996,22 @@ function app_get_all_users(): array {
 
 function app_update_user_tier(int $userId, string $tier): bool {
     $pdo = app_db();
+    $tierLimits = app_tier_limits();
+    $normalizedTier = array_key_exists($tier, $tierLimits) ? $tier : 'basic';
+    $maxSessions = $tierLimits[$normalizedTier]['max_sessions'] ?? 1;
+
     $stmt = $pdo->prepare("
-        UPDATE users 
-        SET tier = :tier, 
-            max_sessions = CASE 
-                WHEN :tier = 'basic' THEN 1
-                WHEN :tier = 'business' THEN 3
-                WHEN :tier = 'enterprise' THEN 5
-                ELSE 1
-            END
+        UPDATE users
+        SET tier = :tier,
+            max_sessions = :max_sessions
         WHERE id = :id
     ");
-    return $stmt->execute(['tier' => $tier, 'id' => $userId]);
+
+    return $stmt->execute([
+        'tier' => $normalizedTier,
+        'max_sessions' => $maxSessions,
+        'id' => $userId
+    ]);
 }
 
 function app_generate_invite_code(int $adminId, string $tier = 'basic'): string {
@@ -2095,14 +2235,33 @@ function app_render_image_modal(): void {
     </div>
 </div>
 
+<!-- PDF Preview Modal -->
+<div class="modal fade" id="whatsappPdfModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">PDF Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="whatsappPdfFrame" src="" title="PDF Preview" style="width: 100%; height: 100%; border: 0;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Function to enlarge image when clicked
 function enlargeImage(imgElement) {
-    const base64Data = imgElement.getAttribute('data-base64');
-    const caption = imgElement.nextElementSibling?.textContent || '';
+    const imageUrl = imgElement.getAttribute('data-image-url') || imgElement.getAttribute('data-base64') || '';
+    const captionSource = imgElement.nextElementSibling;
+    const caption = captionSource ? captionSource.textContent : '';
+    if (!imageUrl) {
+        return;
+    }
     
     // Set the enlarged image source
-    document.getElementById('enlargedImage').src = 'data:image/jpeg;base64,' + base64Data;
+    document.getElementById('enlargedImage').src = imageUrl.startsWith('data:') ? imageUrl : imageUrl;
     
     // Set caption if available
     const captionElement = document.getElementById('imageCaption');
@@ -2111,7 +2270,7 @@ function enlargeImage(imgElement) {
     
     // Store current image data for download
     window.currentEnlargedImage = {
-        base64: base64Data,
+        url: imageUrl,
         caption: caption
     };
     
@@ -2122,16 +2281,46 @@ function enlargeImage(imgElement) {
 
 // Function to download the enlarged image
 function downloadImage() {
-    if (!window.currentEnlargedImage) return;
+    if (!window.currentEnlargedImage || !window.currentEnlargedImage.url) return;
     
-    const { base64, caption } = window.currentEnlargedImage;
     const link = document.createElement('a');
-    link.href = 'data:image/jpeg;base64,' + base64;
+    link.href = window.currentEnlargedImage.url;
     link.download = 'image_' + Date.now() + '.jpg';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
+
+function openWhatsappPdfModal(trigger) {
+    const fileUrl = trigger.getAttribute('data-file-url') || '';
+    if (!fileUrl) {
+        return;
+    }
+
+    const isDesktop = window.innerWidth >= 992;
+    if (!isDesktop) {
+        window.open(fileUrl, '_blank', 'noopener');
+        return;
+    }
+
+    const frame = document.getElementById('whatsappPdfFrame');
+    if (!frame) {
+        return;
+    }
+
+    frame.src = fileUrl;
+    const modal = new bootstrap.Modal(document.getElementById('whatsappPdfModal'));
+    modal.show();
+}
+
+document.addEventListener('click', function(event) {
+    const trigger = event.target.closest('.pdf-preview-trigger');
+    if (!trigger) {
+        return;
+    }
+    event.preventDefault();
+    openWhatsappPdfModal(trigger);
+});
 
 // Close modal with Escape key
 document.addEventListener('keydown', function(event) {

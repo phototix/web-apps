@@ -19,7 +19,7 @@ function app_find_user_by_email(PDO $pdo, string $email): ?array
 
 function app_find_user_by_id(PDO $pdo, int $id): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, tier, created_at FROM users WHERE id = :id LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, tier, parent_id, created_at FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => $id]);
 
     $user = $statement->fetch();
@@ -52,6 +52,27 @@ function app_current_user(): ?array
     $user = app_find_user_by_id(app_db(), (int) $userId);
 
     return $user;
+}
+
+function app_get_parent_user(array $user): ?array
+{
+    if (($user['role'] ?? '') !== 'users') {
+        return null;
+    }
+
+    $parentId = (int) ($user['parent_id'] ?? 0);
+    if ($parentId <= 0) {
+        return null;
+    }
+
+    return app_find_user_by_id(app_db(), $parentId);
+}
+
+function app_get_effective_user(array $user): array
+{
+    $parent = app_get_parent_user($user);
+
+    return $parent ?: $user;
 }
 
 function app_logout_user(): void

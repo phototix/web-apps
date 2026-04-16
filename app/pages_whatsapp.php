@@ -1893,7 +1893,7 @@ function app_page_admin_users(): void {
                                              <a class="btn btn-sm btn-outline-primary me-1" 
                                                 href="/admin/users/magic-login?token=<?= urlencode($magicToken) ?>"
                                                 title="Login as user">
-                                                 <i class="fas fa-magic"></i>
+                                                 <i class="fas fa-lock"></i>
                                              </a>
                                              <button type="button" class="btn btn-sm btn-danger delete-user-btn" 
                                                      data-user-id="<?= $u['id'] ?>"

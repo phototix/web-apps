@@ -576,6 +576,36 @@ function app_page_cases(): void
     } catch (Exception $e) {
         // Groups or sessions might not exist yet
     }
+
+    $activeGroupCount = 0;
+    $archivedGroupCount = 0;
+    $sessionActiveCounts = [];
+    $sessionArchivedCounts = [];
+    foreach ($groups as $group) {
+        if (!isset($group['session_id'])) {
+            continue;
+        }
+
+        $sessionId = (int) $group['session_id'];
+        if ($sessionId <= 0) {
+            continue;
+        }
+
+        $isArchived = false;
+        if (array_key_exists('status', $group) && $group['status'] !== null) {
+            $isArchived = $group['status'] === 'archived';
+        } elseif (array_key_exists('is_archived', $group)) {
+            $isArchived = (bool) $group['is_archived'];
+        }
+
+        if ($isArchived) {
+            $archivedGroupCount++;
+            $sessionArchivedCounts[$sessionId] = ($sessionArchivedCounts[$sessionId] ?? 0) + 1;
+        } else {
+            $activeGroupCount++;
+            $sessionActiveCounts[$sessionId] = ($sessionActiveCounts[$sessionId] ?? 0) + 1;
+        }
+    }
     
     // Cases content - File Browser Design with Sidebar
     ?>
@@ -607,19 +637,7 @@ function app_page_cases(): void
                                 <span>All Sessions</span>
                                 <span class="badge bg-primary rounded-pill ms-auto">
                                     <?php
-                                    // Count valid groups
-                                    $validGroupCount = 0;
-                                    if (!empty($groups)) {
-                                        foreach ($groups as $group) {
-                                            if (isset($group['name'], $group['session_id'], $group['session_name'], $group['group_id'])) {
-                                                $sessionId = (int)$group['session_id'];
-                                                if ($sessionId > 0) {
-                                                    $validGroupCount++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    echo $validGroupCount;
+                                    echo $activeGroupCount;
                                     ?>
                                 </span>
                             </div>
@@ -638,13 +656,7 @@ function app_page_cases(): void
                                     continue;
                                 }
                                 
-                                // Count groups for this session
-                                $sessionGroupCount = 0;
-                                foreach ($groups as $group) {
-                                    if (isset($group['session_id']) && $group['session_id'] == $sessionId) {
-                                        $sessionGroupCount++;
-                                    }
-                                }
+                                $sessionGroupCount = $sessionActiveCounts[$sessionId] ?? 0;
                                 ?>
                                  <a href="#" class="list-group-item list-group-item-action" data-session-id="<?= $sessionId ?>">
                                     <div class="d-flex align-items-center">
@@ -663,6 +675,16 @@ function app_page_cases(): void
                                 </a>
                             <?php endforeach; ?>
                         <?php endif; ?>
+                        <div class="px-3 py-2 text-muted small text-uppercase border-top">Archived</div>
+                        <a href="#" class="list-group-item list-group-item-action" data-session-id="archived">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-archive me-2 text-muted"></i>
+                                <span>Archived Groups</span>
+                                <span class="badge bg-light text-dark rounded-pill ms-auto">
+                                    <?= $archivedGroupCount ?>
+                                </span>
+                            </div>
+                        </a>
                     </div>
                 </div>
                 <div class="card-footer bg-white border-top-0 pt-0">
@@ -738,7 +760,18 @@ function app_page_cases(): void
                                         if ($sessionId <= 0) {
                                             continue;
                                         }
-                                        
+
+                                        $isArchived = false;
+                                        if (array_key_exists('status', $group) && $group['status'] !== null) {
+                                            $isArchived = $group['status'] === 'archived';
+                                        } elseif (array_key_exists('is_archived', $group)) {
+                                            $isArchived = (bool) $group['is_archived'];
+                                        }
+                                        $groupChatId = $group['group_id'] ?? '';
+                                        if (!is_string($groupChatId)) {
+                                            $groupChatId = '';
+                                        }
+
                                         // Get message count safely
                                         $messageCount = 0;
                                         $lastActivity = 0;
@@ -762,14 +795,20 @@ function app_page_cases(): void
                                              data-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>"
                                              data-message-count="<?= $messageCount ?>"
                                              data-participant-count="<?= isset($group['participant_count']) ? (int)$group['participant_count'] : 0 ?>"
-                                             data-last-activity="<?= $lastActivity ?>">
+                                             data-last-activity="<?= $lastActivity ?>"
+                                             data-status="<?= $isArchived ? 'archived' : 'active' ?>">
                                             <div class="card folder-card h-100 border">
                                                 <div class="card-body d-flex flex-column">
-                                                    <div class="d-flex align-items-center mb-3">
+                                                    <div class="d-flex align-items-start mb-3">
                                                         <div class="flex-grow-1">
                                                             <h6 class="mb-0 text-truncate" title="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>">
                                                                 <?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>
                                                             </h6>
+                                                            <?php if ($groupChatId !== ''): ?>
+                                                                <small class="text-muted d-block" title="<?= htmlspecialchars($groupChatId, ENT_QUOTES, 'UTF-8') ?>">
+                                                                    <?= htmlspecialchars($groupChatId, ENT_QUOTES, 'UTF-8') ?>
+                                                                </small>
+                                                            <?php endif; ?>
                                                             <small class="text-muted session-badge" data-session-id="<?= $sessionId ?>">
                                                                 <?php
                                                                 // Find the session info for this group
@@ -804,11 +843,28 @@ function app_page_cases(): void
                                                     </div>
                                                     
                                                     <div class="mt-auto">
-                                                        <button class="btn btn-outline-primary btn-sm w-100 open-folder" 
-                                                                data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                        <div class="btn-group w-100" role="group">
+                                                            <button class="btn btn-outline-primary btn-sm open-folder" style="flex: 0 0 80%;"
+                                                                    data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
                                                                 data-group-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>">
-                                                            <i class="fas fa-folder-open me-1"></i> Open
-                                                        </button>
+                                                                <i class="fas fa-folder-open me-1"></i> Open
+                                                            </button>
+                                                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split" style="flex: 0 0 20%;" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+                                                                <span class="visually-hidden">Toggle dropdown</span>
+                                                            </button>
+                                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                                <li>
+                                                                    <a class="dropdown-item group-archive-toggle" href="#"
+                                                                       data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-session-id="<?= $sessionId ?>"
+                                                                       data-action="<?= $isArchived ? 'unarchive' : 'archive' ?>">
+                                                                        <i class="fas <?= $isArchived ? 'fa-box-open' : 'fa-archive' ?> me-2"></i>
+                                                                        <?= $isArchived ? 'Unarchive' : 'Archive' ?>
+                                                                    </a>
+                                                                </li>
+                                                            </ul>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -860,12 +916,18 @@ function app_page_cases(): void
                                     
                                     <div class="col-lg-8">
                                         <div class="card mb-4">
-                                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0">Messages & Files</h6>
-                                                <div class="btn-group">
-                                                    <button class="btn btn-sm btn-outline-secondary active" data-filter="all">All</button>
-                                                    <button class="btn btn-sm btn-outline-secondary" data-filter="messages">Messages</button>
-                                                    <button class="btn btn-sm btn-outline-secondary" data-filter="files">Files</button>
+                                            <div class="card-header bg-white">
+                                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                                    <h6 class="mb-0 me-auto">Messages & Files</h6>
+                                                    <div class="input-group input-group-sm" style="max-width: 260px;">
+                                                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                                        <input type="text" class="form-control" id="messages-files-search" placeholder="Search messages & files" aria-label="Search messages and files">
+                                                    </div>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary active" data-filter="all">All</button>
+                                                        <button class="btn btn-sm btn-outline-secondary" data-filter="messages">Messages</button>
+                                                        <button class="btn btn-sm btn-outline-secondary" data-filter="files">Files</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div class="card-body p-0">
@@ -904,6 +966,14 @@ function app_page_cases(): void
     .folder-card .card-body {
         display: flex;
         flex-direction: column;
+    }
+
+    .group-menu {
+        line-height: 1;
+    }
+
+    .group-menu:hover {
+        text-decoration: none;
     }
     
     .folder-icon {
@@ -983,6 +1053,12 @@ function app_page_cases(): void
     
     .message-item .fa-comment-dots {
         color: #28a745;
+    }
+
+    .message-data-highlight {
+        font-weight: 700;
+        font-size: 1.05rem;
+        text-align: right;
     }
     
     .file-item .fa-file-pdf {
@@ -1525,6 +1601,61 @@ function app_page_cases(): void
             });
         });
         
+        function updateEmptyState(visibleCount = null, searchTerm = null, sessionId = null) {
+            const foldersGrid = document.getElementById('folders-grid');
+            if (!foldersGrid) {
+                return;
+            }
+
+            if (visibleCount === null) {
+                visibleCount = Array.from(document.querySelectorAll('.folder-item'))
+                    .filter(item => item.style.display !== 'none')
+                    .length;
+            }
+
+            if (searchTerm === null) {
+                const folderSearchInput = document.getElementById('folder-search');
+                searchTerm = folderSearchInput ? folderSearchInput.value.toLowerCase().trim() : '';
+            }
+
+            if (sessionId === null) {
+                const activeSessionItem = document.querySelector('.session-filter .list-group-item.active');
+                sessionId = activeSessionItem ? activeSessionItem.getAttribute('data-session-id') : 'all';
+            }
+
+            const emptyState = document.querySelector('.empty-state');
+            if (visibleCount === 0) {
+                if (!emptyState) {
+                    let emptyMessage = 'No groups found';
+                    let emptyDescription = 'Select a different session or sync more groups.';
+
+                    if (searchTerm.length > 0) {
+                        emptyMessage = 'No matching groups found';
+                        emptyDescription = 'Try a different search term or select a different session.';
+                    } else if (sessionId === 'archived') {
+                        emptyMessage = 'No archived groups';
+                        emptyDescription = 'Archive a group to manage it here.';
+                    } else if (sessionId !== 'all') {
+                        emptyMessage = 'No groups in this session';
+                        emptyDescription = 'Select a different session or sync more groups.';
+                    }
+
+                    const emptyStateHtml = `
+                        <div class="col-12 empty-state">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-folder-open fa-3x mb-3"></i>
+                                <h5>${emptyMessage}</h5>
+                                <p>${emptyDescription}</p>
+                            </div>
+                        </div>
+                    `;
+                    foldersGrid.insertAdjacentHTML('beforeend', emptyStateHtml);
+                }
+            } else if (emptyState) {
+                emptyState.remove();
+            }
+        }
+
         // Function to sort folders
          function sortFolders(sortType) {
              const foldersGrid = document.getElementById('folders-grid');
@@ -1652,6 +1783,42 @@ function app_page_cases(): void
             folderGridView.classList.remove('d-none');
         });
         
+        function applyMessagesFilesSearch() {
+            const searchInput = document.getElementById('messages-files-search');
+            const list = document.getElementById('messages-files-list');
+            if (!searchInput || !list) {
+                return;
+            }
+
+            const query = searchInput.value.toLowerCase().trim();
+            const items = list.querySelectorAll('.message-item, .file-item');
+            if (items.length === 0) {
+                return;
+            }
+
+            let matchCount = 0;
+            items.forEach(item => {
+                const itemText = (item.textContent || '').toLowerCase();
+                const isMatch = query === '' || itemText.includes(query);
+                item.classList.toggle('d-none', !isMatch);
+                if (isMatch) {
+                    matchCount++;
+                }
+            });
+
+            let emptyState = document.getElementById('messages-files-search-empty');
+            if (!emptyState) {
+                emptyState = document.createElement('div');
+                emptyState.id = 'messages-files-search-empty';
+                emptyState.className = 'text-center text-muted py-4 d-none';
+                emptyState.innerHTML = '<i class="fas fa-search fa-2x mb-2"></i><p class="mb-0">No matches found</p>';
+                list.appendChild(emptyState);
+            }
+
+            const shouldShowEmpty = query !== '' && matchCount === 0;
+            emptyState.classList.toggle('d-none', !shouldShowEmpty);
+        }
+
         // Filter buttons for messages/files
         const filterBtns = document.querySelectorAll('[data-filter]');
         filterBtns.forEach(btn => {
@@ -1673,6 +1840,13 @@ function app_page_cases(): void
                 }
             });
         });
+
+        const messagesFilesSearch = document.getElementById('messages-files-search');
+        if (messagesFilesSearch) {
+            messagesFilesSearch.addEventListener('input', function() {
+                applyMessagesFilesSearch();
+            });
+        }
         
         // Function to filter folders by session
         function filterFoldersBySession(sessionId) {
@@ -1692,31 +1866,36 @@ function app_page_cases(): void
         function filterFoldersBySearch(searchTerm, sessionId) {
             const allFolders = document.querySelectorAll('.folder-item');
             let visibleCount = 0;
-            
+
             allFolders.forEach(folder => {
                 const folderSessionId = folder.getAttribute('data-session-id');
+                const folderStatus = folder.getAttribute('data-status');
+                const isArchived = folderStatus === 'archived';
                 const folderName = folder.querySelector('h6').textContent.toLowerCase();
                 const sessionName = folder.querySelector('.session-badge').textContent.toLowerCase();
-                
-                // Check session filter
-                const sessionMatch = sessionId === 'all' || folderSessionId === sessionId;
-                
-                // Check search filter
-                const searchMatch = searchTerm === '' || 
-                                   folderName.includes(searchTerm) || 
-                                   sessionName.includes(searchTerm);
-                
-                // Show/hide folder based on both filters
+
+                let sessionMatch = false;
+                if (sessionId === 'archived') {
+                    sessionMatch = isArchived;
+                } else if (sessionId === 'all') {
+                    sessionMatch = !isArchived;
+                } else {
+                    sessionMatch = !isArchived && folderSessionId === sessionId;
+                }
+
+                const searchMatch = searchTerm === '' ||
+                    folderName.includes(searchTerm) ||
+                    sessionName.includes(searchTerm);
+
                 if (sessionMatch && searchMatch) {
                     folder.style.display = 'block';
                     visibleCount++;
-                    
-                    // Highlight search term in folder name
+
                     if (searchTerm.length > 0) {
                         const folderNameElement = folder.querySelector('h6');
                         const originalName = folderNameElement.getAttribute('data-original-name') || folderNameElement.textContent;
                         folderNameElement.setAttribute('data-original-name', originalName);
-                        
+
                         const highlightedName = originalName.replace(
                             new RegExp(`(${searchTerm})`, 'gi'),
                             '<mark class="bg-warning px-1 rounded">$1</mark>'
@@ -1725,8 +1904,7 @@ function app_page_cases(): void
                     }
                 } else {
                     folder.style.display = 'none';
-                    
-                    // Restore original name if it was highlighted
+
                     if (searchTerm.length > 0) {
                         const folderNameElement = folder.querySelector('h6');
                         const originalName = folderNameElement.getAttribute('data-original-name');
@@ -1746,36 +1924,115 @@ function app_page_cases(): void
                 }
             }
             
-            // Show/hide empty state
-            const emptyState = document.querySelector('.empty-state');
-            if (visibleCount === 0) {
-                if (!emptyState) {
-                    let emptyMessage = 'No groups found';
-                    let emptyDescription = 'Select a different session or sync more groups.';
-                    
-                    if (searchTerm.length > 0) {
-                        emptyMessage = 'No matching groups found';
-                        emptyDescription = 'Try a different search term or select a different session.';
-                    } else if (sessionId !== 'all') {
-                        emptyMessage = 'No groups in this session';
-                        emptyDescription = 'Select a different session or sync more groups.';
-                    }
-                    
-                    const emptyStateHtml = `
-                        <div class="col-12 empty-state">
-                            <div class="text-center text-muted py-5">
-                                <i class="fas fa-folder-open fa-3x mb-3"></i>
-                                <h5>${emptyMessage}</h5>
-                                <p>${emptyDescription}</p>
-                            </div>
-                        </div>
-                    `;
-                    foldersGrid.insertAdjacentHTML('beforeend', emptyStateHtml);
-                }
-            } else if (emptyState) {
-                emptyState.remove();
-            }
+            updateEmptyState(visibleCount, searchTerm, sessionId);
         }
+
+        function updateSessionBadges() {
+            const folderItems = document.querySelectorAll('.folder-item');
+            const activeCounts = {};
+            let activeTotal = 0;
+            let archivedTotal = 0;
+
+            folderItems.forEach(folder => {
+                const sessionId = folder.getAttribute('data-session-id');
+                const status = folder.getAttribute('data-status');
+                if (status === 'archived') {
+                    archivedTotal++;
+                    return;
+                }
+                activeTotal++;
+                activeCounts[sessionId] = (activeCounts[sessionId] || 0) + 1;
+            });
+
+            document.querySelectorAll('.session-filter .list-group-item').forEach(item => {
+                const sessionId = item.getAttribute('data-session-id');
+                if (!sessionId) {
+                    return;
+                }
+
+                let count = 0;
+                if (sessionId === 'all') {
+                    count = activeTotal;
+                } else if (sessionId === 'archived') {
+                    count = archivedTotal;
+                } else {
+                    count = activeCounts[sessionId] || 0;
+                }
+
+                let badge = item.querySelector('.badge');
+                if (count > 0 || sessionId === 'archived' || sessionId === 'all') {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        if (sessionId === 'archived') {
+                            badge.className = 'badge bg-light text-dark rounded-pill ms-auto';
+                        } else if (sessionId === 'all') {
+                            badge.className = 'badge bg-primary rounded-pill ms-auto';
+                        } else {
+                            badge.className = 'badge bg-secondary rounded-pill ms-auto';
+                        }
+                        item.querySelector('.d-flex').appendChild(badge);
+                    }
+                    badge.textContent = count;
+                } else if (badge) {
+                    badge.remove();
+                }
+            });
+        }
+
+        const archiveToggleLinks = document.querySelectorAll('.group-archive-toggle');
+        archiveToggleLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                const action = this.getAttribute('data-action');
+                const status = action === 'unarchive' ? 'active' : 'archived';
+                const groupId = this.getAttribute('data-group-id');
+                const sessionId = this.getAttribute('data-session-id');
+                const folderItem = this.closest('.folder-item');
+
+                this.classList.add('disabled');
+
+                fetch(`/api/whatsapp/groups/${encodeURIComponent(groupId)}/archive`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        status: status
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.message || 'Failed to update group status');
+                        }
+
+                        const isArchived = status === 'archived';
+                        if (folderItem) {
+                            folderItem.setAttribute('data-status', isArchived ? 'archived' : 'active');
+                        }
+
+                        this.setAttribute('data-action', isArchived ? 'unarchive' : 'archive');
+                        this.innerHTML = `<i class="fas ${isArchived ? 'fa-box-open' : 'fa-archive'} me-2"></i>${isArchived ? 'Unarchive' : 'Archive'}`;
+
+                        updateSessionBadges();
+
+                        const activeSessionItem = document.querySelector('.session-filter .list-group-item.active');
+                        const activeSessionId = activeSessionItem ? activeSessionItem.getAttribute('data-session-id') : 'all';
+                        filterFoldersBySession(activeSessionId);
+                    })
+                    .catch(error => {
+                        alert(error.message);
+                    })
+                    .finally(() => {
+                        this.classList.remove('disabled');
+                    });
+            });
+        });
+
+        updateSessionBadges();
+        filterFoldersBySession('all');
         
         // Function to load folder content via AJAX (global scope)
         window.loadFolderContent = function(groupId) {
@@ -2095,6 +2352,8 @@ function app_page_cases(): void
                 
                  html += '</div>';
                  messagesList.innerHTML = html;
+
+                 applyMessagesFilesSearch();
                  
                  // Update message dropdowns with current categories if available
                  if (typeof window.currentCategories !== 'undefined') {
@@ -2130,6 +2389,7 @@ function app_page_cases(): void
                      });
                  });
               }
+
              
              // Function to update all message dropdowns with categories
              function updateAllMessageDropdowns(categories) {
@@ -2253,6 +2513,11 @@ function app_page_cases(): void
                     content = content.substring(0, 200) + '...';
                 }
                 html += `<p class="mb-1">${content}</p>`;
+
+                const dataTextRaw = message.data !== null && message.data !== undefined ? message.data.toString().trim() : '';
+                if (dataTextRaw.length > 0) {
+                    html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                }
                 
                 // Category badge if available
                 if (message.category_name) {
@@ -2336,7 +2601,7 @@ function app_page_cases(): void
                 html += '<div class="d-flex justify-content-between align-items-start">';
                 
                 // File name
-                let fileName = 'File';
+                let fileName = file.message_type === 'audio' ? 'Audio' : 'File';
                 if (file.file_name) {
                     fileName = escapeHtml(file.file_name);
                 } else if (file.message_type === 'document' && file.media_url) {
@@ -2351,14 +2616,17 @@ function app_page_cases(): void
                 } else if (file.content) {
                     fileName = escapeHtml(file.content.substring(0, 50)) + '...';
                 }
+                if (file.media_type === 'application/pdf' && file.media_caption) {
+                    fileName = escapeHtml(file.media_caption);
+                }
                 const fileCaption = file.message_type === 'document'
                     ? escapeHtml(file.media_caption || file.caption || '')
                     : '';
                 
                 const rawFileName = fileName;
                 let displayFileName = rawFileName;
-                if (rawFileName.length > 10) {
-                    displayFileName = rawFileName.slice(-10);
+                if (rawFileName.length > 25) {
+                    displayFileName = rawFileName.slice(-25);
                 }
 
                 html += '<div>';
@@ -2394,6 +2662,11 @@ function app_page_cases(): void
                 
                 // Sender info
                 html += `<p class="mb-1 text-muted">From: ${escapeHtml(file.sender_name || file.sender_number || 'Unknown')}</p>`;
+
+                const dataTextRaw = file.data !== null && file.data !== undefined ? file.data.toString().trim() : '';
+                if (dataTextRaw.length > 0) {
+                    html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
+                }
 
                 if (file.message_type === 'document' && file.media_url) {
                     const docUrl = escapeHtml(file.media_url);

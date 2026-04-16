@@ -296,3 +296,34 @@ function app_db_upsert_whatsapp_group(array $data): int {
         return (int) $pdo->lastInsertId();
     }
 }
+
+function app_whatsapp_set_group_status_by_id(int $groupId, string $status): bool {
+    $pdo = app_db();
+    $isArchived = $status === 'archived' ? 1 : 0;
+    $stmt = $pdo->prepare('
+        UPDATE whatsapp_groups
+        SET status = :status, is_archived = :is_archived, updated_at = NOW()
+        WHERE id = :id
+    ');
+    return $stmt->execute([
+        'status' => $status,
+        'is_archived' => $isArchived,
+        'id' => $groupId
+    ]);
+}
+
+function app_whatsapp_set_group_status(int $sessionId, string $groupId, string $status): bool {
+    $pdo = app_db();
+    $isArchived = $status === 'archived' ? 1 : 0;
+    $stmt = $pdo->prepare('
+        UPDATE whatsapp_groups
+        SET status = :status, is_archived = :is_archived, updated_at = NOW()
+        WHERE session_id = :session_id AND group_id = :group_id
+    ');
+    return $stmt->execute([
+        'status' => $status,
+        'is_archived' => $isArchived,
+        'session_id' => $sessionId,
+        'group_id' => $groupId
+    ]);
+}

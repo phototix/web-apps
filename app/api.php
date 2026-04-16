@@ -530,6 +530,74 @@ function api_whatsapp_create_group(): void {
     }
 }
 
+function api_whatsapp_set_group_status(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $groupIdParam = api_get_query_param('id');
+    if (!$groupIdParam) {
+        api_validation_error(['id' => 'Group ID is required']);
+    }
+
+    $input = api_get_json_input();
+    $status = $input['status'] ?? null;
+    if (!$status && isset($input['action'])) {
+        $status = $input['action'] === 'unarchive' ? 'active' : 'archived';
+    }
+    if (!$status) {
+        $status = 'archived';
+    }
+
+    if (!in_array($status, ['active', 'archived'], true)) {
+        api_validation_error(['status' => 'Invalid status']);
+    }
+
+    $group = null;
+    $sessionId = null;
+    $groupId = null;
+
+    if (is_numeric($groupIdParam)) {
+        $numericGroupId = (int) $groupIdParam;
+        $group = app_whatsapp_get_group($numericGroupId);
+        if ($group) {
+            $sessionId = (int) $group['session_id'];
+            $groupId = $group['group_id'];
+        }
+    } else {
+        $sessionId = (int) ($input['session_id'] ?? api_get_query_param('session_id'));
+        $groupId = $groupIdParam;
+        if ($sessionId) {
+            $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
+        }
+    }
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
+        api_forbidden('Group not found or access denied');
+    }
+
+    try {
+        $success = false;
+        if (isset($group['id']) && is_numeric($groupIdParam)) {
+            $success = app_whatsapp_set_group_status_by_id((int) $group['id'], $status);
+        } else {
+            $success = app_whatsapp_set_group_status((int) $sessionId, (string) $groupId, $status);
+        }
+
+        if ($success) {
+            api_success('Group status updated', [
+                'status' => $status,
+                'group_id' => $groupId,
+                'session_id' => $sessionId
+            ]);
+        } else {
+            api_error('Failed to update group status');
+        }
+    } catch (Exception $e) {
+        api_error('Failed to update group status: ' . $e->getMessage());
+    }
+}
+
 function api_whatsapp_get_group_messages(): void {
     api_require_method('GET');
     $user = api_require_auth();
@@ -808,13 +876,18 @@ function api_whatsapp_incoming_message(): void
         // Store the message
         $result = app_whatsapp_store_incoming_message($messageData);
         
-        api_success('Message stored successfully', [
+        $responseData = [
             'message_id' => $result['id'],
             'group_id' => $chatId,
             'session_name' => $sessionName,
             'session_id' => $session['id'],
             'stored_at' => date('Y-m-d H:i:s')
-        ], 201);
+        ];
+        if (!empty($result['category_prompt'])) {
+            $responseData['category_prompt'] = $result['category_prompt'];
+        }
+
+        api_success('Message stored successfully', $responseData, 201);
         
     } catch (Exception $e) {
         api_error('Failed to store message: ' . $e->getMessage());

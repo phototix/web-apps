@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_groups (
   name VARCHAR(255) NOT NULL,
   description TEXT NULL,
   participant_count INT DEFAULT 0,
+  status ENUM('active', 'archived') DEFAULT 'active',
   is_archived BOOLEAN DEFAULT FALSE,
   last_message_timestamp BIGINT UNSIGNED NULL,
   last_message_preview TEXT NULL,

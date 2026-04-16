@@ -432,7 +432,7 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     
     $existing = $stmt->fetch();
     if ($existing) {
-        return ['id' => $existing['id'], 'existing' => true];
+        return ['id' => $existing['id'], 'existing' => true, 'category_id' => null, 'category_prompt' => null];
     }
     
     // Check if group exists
@@ -508,6 +508,13 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     ]);
     
     $messageId = (int) $pdo->lastInsertId();
+    $categoryPrompt = null;
+    if (!empty($messageData['category_id'])) {
+        $category = app_whatsapp_get_category((int) $messageData['category_id']);
+        if (!empty($category['prompt'])) {
+            $categoryPrompt = $category['prompt'];
+        }
+    }
 
     if (!empty($messageData['category_id']) && empty($messageData['is_from_me'])) {
         app_whatsapp_send_category_assignment_notification(
@@ -566,7 +573,12 @@ function app_whatsapp_store_incoming_message(array $messageData): array
         'session_id' => $messageData['session_id']
     ]);
     
-    return ['id' => $messageId, 'existing' => false];
+    return [
+        'id' => $messageId,
+        'existing' => false,
+        'category_id' => $messageData['category_id'] ?: null,
+        'category_prompt' => $categoryPrompt
+    ];
 }
 
 function app_whatsapp_detect_message_category(int $sessionId, string $messageType, string $content, string $mediaCaption, string $caption): ?int
@@ -644,7 +656,7 @@ function app_whatsapp_send_category_assignment_notification(int $sessionId, stri
         return;
     }
 
-    $message = 'Auto-assigned category: ' . $category['name'];
+    $message = 'Assigned to: ' . $category['name'];
 
     try {
         app_whatsapp_api_post(

@@ -95,6 +95,7 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/groups/{id}/sync-messages' => 'api_whatsapp_sync_group_messages',
             '/api/whatsapp/groups' => 'api_whatsapp_create_group',
             '/api/whatsapp/messages' => 'api_whatsapp_send_message',
+            '/api/whatsapp/groups/{id}/archive' => 'api_whatsapp_set_group_status',
             '/api/realtime/mark-read' => 'api_mark_update_read',
             '/api/whatsapp/incoming/message' => 'api_whatsapp_incoming_message',
             '/api/whatsapp/incoming/messages/batch' => 'api_whatsapp_incoming_messages_batch',

@@ -1889,6 +1889,12 @@ function app_page_admin_users(): void {
                                     <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                     <td>
                                          <?php if ($user['role'] === 'superadmin' && $u['role'] !== 'superadmin'): ?>
+                                             <?php $magicToken = app_create_magic_login_token((int) $u['id']); ?>
+                                             <a class="btn btn-sm btn-outline-primary me-1" 
+                                                href="/admin/users/magic-login?token=<?= urlencode($magicToken) ?>"
+                                                title="Login as user">
+                                                 <i class="fas fa-magic"></i>
+                                             </a>
                                              <button type="button" class="btn btn-sm btn-danger delete-user-btn" 
                                                      data-user-id="<?= $u['id'] ?>"
                                                      data-user-name="<?= htmlspecialchars($u['name']) ?>">
@@ -1970,6 +1976,45 @@ function app_page_admin_users(): void {
     
     app_render_dashboard_end();
     app_render_footer();
+}
+
+function app_page_admin_users_magic_login(): void
+{
+    app_require_auth();
+    $user = app_current_user();
+
+    if (($user['role'] ?? '') !== 'superadmin') {
+        app_flash('error', 'Access denied');
+        app_redirect('/admin/users');
+    }
+
+    $token = (string) ($_GET['token'] ?? '');
+    if ($token === '') {
+        app_flash('error', 'Magic link is invalid or expired');
+        app_redirect('/admin/users');
+    }
+
+    $targetUserId = app_consume_magic_login_token($token);
+    if ($targetUserId === null) {
+        app_flash('error', 'Magic link is invalid or expired');
+        app_redirect('/admin/users');
+    }
+
+    $targetUser = app_find_user_by_id(app_db(), $targetUserId);
+    if ($targetUser === null) {
+        app_flash('error', 'User not found');
+        app_redirect('/admin/users');
+    }
+
+    if (($targetUser['role'] ?? '') === 'superadmin') {
+        app_flash('error', 'Cannot login as superadmin');
+        app_redirect('/admin/users');
+    }
+
+    app_login_user($targetUser);
+    app_log_auth($targetUser['email'] ?? 'unknown', 'magic_login', true);
+    app_flash('success', 'Logged in as ' . ($targetUser['name'] ?? 'user'));
+    app_redirect('/welcome');
 }
 
 // Helper functions for user management

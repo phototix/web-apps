@@ -41,16 +41,25 @@ function app_whatsapp_update_category(int $categoryId, int $userId, array $updat
     }
     
     // Validate parent category if changing
-    if (isset($updates['parent_id'])) {
+    $hasParentIdUpdate = array_key_exists('parent_id', $updates);
+    if ($hasParentIdUpdate) {
         $newParentId = $updates['parent_id'];
-        if ($newParentId) {
+        if ($newParentId === '' || $newParentId === null) {
+            $newParentId = null;
+        } else {
+            $newParentId = (int) $newParentId;
+        }
+
+        $updates['parent_id'] = $newParentId;
+
+        if ($newParentId !== null) {
             $parent = app_whatsapp_get_category($newParentId);
             if (!$parent || $parent['user_id'] !== $userId) {
                 throw new Exception('Parent category not found or access denied');
             }
             
             // Prevent circular reference (category cannot be parent of itself or its ancestors)
-            if ($newParentId == $categoryId) {
+            if ($newParentId === $categoryId) {
                 throw new Exception('Category cannot be its own parent');
             }
             
@@ -88,7 +97,7 @@ function app_whatsapp_update_category(int $categoryId, int $userId, array $updat
         $params['color'] = $updates['color'];
     }
     
-    if (isset($updates['parent_id'])) {
+    if ($hasParentIdUpdate) {
         $setClauses[] = 'parent_id = :parent_id';
         $params['parent_id'] = $updates['parent_id'];
     }

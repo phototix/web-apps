@@ -33,6 +33,73 @@ function app_login_user(array $user): void
     $_SESSION['user_id'] = (int) $user['id'];
 }
 
+function app_magic_login_token_ttl(): int
+{
+    return 300;
+}
+
+function app_get_magic_login_tokens(): array
+{
+    $tokens = $_SESSION['magic_login_tokens'] ?? [];
+
+    return is_array($tokens) ? $tokens : [];
+}
+
+function app_store_magic_login_tokens(array $tokens): void
+{
+    $_SESSION['magic_login_tokens'] = $tokens;
+}
+
+function app_prune_magic_login_tokens(array $tokens, int $now): array
+{
+    foreach ($tokens as $token => $entry) {
+        $expiresAt = (int) ($entry['expires_at'] ?? 0);
+        if ($expiresAt <= $now) {
+            unset($tokens[$token]);
+        }
+    }
+
+    return $tokens;
+}
+
+function app_create_magic_login_token(int $userId): string
+{
+    $token = bin2hex(random_bytes(16));
+    $now = time();
+    $tokens = app_prune_magic_login_tokens(app_get_magic_login_tokens(), $now);
+
+    $tokens[$token] = [
+        'user_id' => $userId,
+        'expires_at' => $now + app_magic_login_token_ttl()
+    ];
+
+    app_store_magic_login_tokens($tokens);
+
+    return $token;
+}
+
+function app_consume_magic_login_token(string $token): ?int
+{
+    $now = time();
+    $tokens = app_prune_magic_login_tokens(app_get_magic_login_tokens(), $now);
+
+    if (!isset($tokens[$token])) {
+        app_store_magic_login_tokens($tokens);
+        return null;
+    }
+
+    $entry = $tokens[$token];
+    unset($tokens[$token]);
+    app_store_magic_login_tokens($tokens);
+
+    $expiresAt = (int) ($entry['expires_at'] ?? 0);
+    if ($expiresAt <= $now) {
+        return null;
+    }
+
+    return (int) ($entry['user_id'] ?? 0) ?: null;
+}
+
 function app_current_user(): ?array
 {
     static $user = false;

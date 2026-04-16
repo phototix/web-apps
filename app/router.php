@@ -38,6 +38,7 @@ function app_dispatch_request(): void
             '/cases' => 'app_page_cases',
             '/settings' => 'app_page_settings',
             '/admin/users' => 'app_page_admin_users',
+            '/admin/users/magic-login' => 'app_page_admin_users_magic_login',
             '/admin/my-users' => 'app_page_admin_my_users',
         ],
         'POST' => [

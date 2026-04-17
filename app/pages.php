@@ -3134,7 +3134,7 @@ function app_page_cases(): void
 
 function app_pages_max_limit(): int
 {
-    return 10;
+    return 3;
 }
 
 function app_pages_list_for_user(int $userId): array
@@ -3229,7 +3229,14 @@ function app_page_pages(): void
     $isAuthenticated = $user !== null;
     $effectiveUser = $isAuthenticated ? app_get_effective_user($user) : null;
     $effectiveUserId = (int) ($effectiveUser['id'] ?? 0);
-    $token = trim((string) ($_GET['token'] ?? ''));
+    $tokenInput = trim((string) ($_GET['token'] ?? ''));
+    $requestedFile = null;
+    if ($tokenInput !== '' && str_contains($tokenInput, '/')) {
+        $parts = explode('/', $tokenInput, 2);
+        $tokenInput = trim((string) ($parts[0] ?? ''));
+        $requestedFile = trim((string) ($parts[1] ?? ''));
+    }
+    $token = $tokenInput;
     $tokenIsValid = $token !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $token) === 1;
     $pageRecord = $tokenIsValid ? app_pages_find_by_token($token) : null;
     $tokenExists = $pageRecord !== null;
@@ -3250,6 +3257,35 @@ function app_page_pages(): void
         }
     }
 
+    if ($requestedFile !== null) {
+        $allowedFiles = [
+            'app.html' => 'text/html; charset=UTF-8',
+            'app.css' => 'text/css; charset=UTF-8',
+            'app.js' => 'application/javascript; charset=UTF-8',
+            'reports.csv' => 'text/csv; charset=UTF-8',
+            'report.csv' => 'text/csv; charset=UTF-8',
+        ];
+        if (!$canViewPage || $requestedFile === '' || !array_key_exists($requestedFile, $allowedFiles)) {
+            http_response_code(404);
+            return;
+        }
+
+        if ($resolvedPageDir === null) {
+            http_response_code(404);
+            return;
+        }
+
+        $filePath = $resolvedPageDir . DIRECTORY_SEPARATOR . $requestedFile;
+        if (!is_file($filePath)) {
+            http_response_code(404);
+            return;
+        }
+
+        header('Content-Type: ' . $allowedFiles[$requestedFile]);
+        readfile($filePath);
+        return;
+    }
+
     $htmlPath = $resolvedPageDir ? $resolvedPageDir . '/app.html' : null;
     $cssPath = $resolvedPageDir ? $resolvedPageDir . '/app.css' : null;
     $jsPath = $resolvedPageDir ? $resolvedPageDir . '/app.js' : null;
@@ -3262,6 +3298,15 @@ function app_page_pages(): void
     $cssContent = $cssExists ? (string) file_get_contents($cssPath) : '';
     $jsContent = $jsExists ? (string) file_get_contents($jsPath) : '';
 
+    $logDir = dirname(__DIR__) . '/logs';
+    $statusFile = $tokenIsValid ? $logDir . '/page_generate_' . $token . '.status' : null;
+    $generationStatus = '';
+    if ($statusFile && is_file($statusFile)) {
+        $generationStatus = trim((string) file_get_contents($statusFile));
+    }
+    $isGenerating = $generationStatus === 'running';
+    $isGenerationFailed = $generationStatus === 'failed';
+
     $iframeSrcdoc = null;
     if ($htmlExists) {
         $iframeSrcdoc = "<!DOCTYPE html>\n" .
@@ -3269,6 +3314,7 @@ function app_page_pages(): void
             "<head>\n" .
             "  <meta charset=\"utf-8\">\n" .
             "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" .
+            "  <base href=\"/pages/" . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . "/\">\n" .
             "  <link rel=\"stylesheet\" href=\"/assets/pages/bootstrap.min.css\">\n" .
             "  <link rel=\"stylesheet\" href=\"/assets/pages/fontawesome.min.css\">\n" .
             "  <link rel=\"stylesheet\" href=\"/assets/pages/sweetalert2.min.css\">\n" .
@@ -3316,21 +3362,9 @@ function app_page_pages(): void
                         </div>
                         <div class="text-end">
                             <div class="text-muted small"><?= $pageCount ?> / <?= $pageLimit ?> pages used</div>
-                            <button class="btn btn-primary btn-sm mt-2" type="button" id="createPageBtn">
-                                <i class="fas fa-plus me-1"></i> Create Page
-                            </button>
                         </div>
                     </div>
                     <div class="card-body">
-                        <form class="row g-2 align-items-end" method="get" action="/pages">
-                            <div class="col-md-6">
-                                <label class="form-label">Token</label>
-                                <input type="text" name="token" class="form-control" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>" placeholder="Enter token" />
-                            </div>
-                            <div class="col-md-3">
-                                <button type="submit" class="btn btn-outline-primary">Load Page</button>
-                            </div>
-                        </form>
                         <?php if ($token !== '' && !$tokenIsValid): ?>
                             <div class="alert alert-danger mt-3 mb-0">Token contains invalid characters. Use letters, numbers, hyphen, and underscore only.</div>
                         <?php elseif ($tokenIsValid && $tokenExists === false): ?>
@@ -3370,7 +3404,9 @@ function app_page_pages(): void
                                                 <td>
                                                     <div class="d-flex flex-column">
                                                         <span class="fw-semibold"><?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?></span>
-                                                        <a class="small" href="/pages?token=<?= urlencode($page['token']) ?>">/pages?token=<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?></a>
+                                                        <div class="mt-1">
+                                                            <a class="btn btn-outline-primary btn-sm" href="/pages?token=<?= urlencode($page['token']) ?>">View Page</a>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td>
@@ -3473,14 +3509,39 @@ function app_page_pages(): void
                 </div>
             </div>
         </div>
+        <script>
+            (function () {
+                var token = "<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>";
+                if (!token) {
+                    return;
+                }
+
+                window.setInterval(function () {
+                    window.location.reload();
+                }, 10000);
+            })();
+        </script>
     <?php endif; ?>
 
     <?php if ($token !== '' && $tokenIsValid && $canViewPage): ?>
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header bg-white">
+                    <div class="card-header bg-white d-flex align-items-center justify-content-between">
                         <h5 class="mb-0">Preview</h5>
+                        <div class="d-flex align-items-center gap-2">
+                            <?php if ($isOwner && ($isGenerationFailed || $isGenerating || !($htmlExists && $cssExists && $jsExists))): ?>
+                                <button
+                                    class="btn btn-outline-warning btn-sm"
+                                    id="page-regenerate-btn"
+                                    data-page-id="<?= (int) ($pageRecord['id'] ?? 0) ?>"
+                                    <?= $isGenerating ? 'disabled' : '' ?>
+                                >
+                                    <?= $isGenerating ? 'Generating...' : 'Regenerate' ?>
+                                </button>
+                            <?php endif; ?>
+                            <a class="btn btn-outline-secondary btn-sm" href="/pages">Back to Pages</a>
+                        </div>
                     </div>
                     <div class="card-body">
                         <?php if ($iframeSrcdoc): ?>
@@ -3618,6 +3679,75 @@ function app_page_pages(): void
 
                 fallback();
             }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                var regenBtn = document.getElementById('page-regenerate-btn');
+                if (!regenBtn) {
+                    return;
+                }
+
+                var showMessage = function (type, title, message) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: type,
+                            title: title,
+                            text: message
+                        });
+                        return;
+                    }
+                    alert(message);
+                };
+
+                regenBtn.addEventListener('click', function () {
+                    if (regenBtn.disabled) {
+                        return;
+                    }
+
+                    var pageId = regenBtn.getAttribute('data-page-id');
+                    if (!pageId) {
+                        return;
+                    }
+
+                    regenBtn.disabled = true;
+                    regenBtn.textContent = 'Generating...';
+
+                    fetch('/api/pages/' + pageId + '/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'same-origin'
+                    })
+                        .then(function (response) {
+                            return response.json()
+                                .catch(function () {
+                                    return null;
+                                })
+                                .then(function (data) {
+                                    return { response: response, data: data };
+                                });
+                        })
+                        .then(function (result) {
+                            if (!result.response.ok || !result.data || result.data.success !== true) {
+                                var message = result.data && result.data.message
+                                    ? result.data.message
+                                    : 'Failed to start generation.';
+                                showMessage('error', 'Error', message);
+                                regenBtn.disabled = false;
+                                regenBtn.textContent = 'Regenerate';
+                                return;
+                            }
+
+                            showMessage('success', 'Generation started', 'The page is regenerating now.');
+                            window.location.reload();
+                        })
+                        .catch(function () {
+                            showMessage('error', 'Error', 'Unable to start generation.');
+                            regenBtn.disabled = false;
+                            regenBtn.textContent = 'Regenerate';
+                        });
+                });
+            });
         </script>
         <?php
     }

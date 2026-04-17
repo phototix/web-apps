@@ -1,0 +1,32 @@
+[0m
+> build · big-pickle
+[0m
+[0m✱ [0mGlob "*.csv"[90m 2 matches[0m
+[0m→ [0mRead reports.csv
+[0m→ [0mRead report.csv
+[0m
+[0m← [0mWrite app.html
+Wrote file successfully.
+[0m
+[0m← [0mWrite app.js
+Wrote file successfully.
+[0m
+[0m✱ [0mGlob "app.*"[90m 3 matches[0m
+[0m
+[0m$ [0mls -la
+total 32
+drwxr-xr-x 2 www-data www-data 4096 Apr 18 01:05 .
+drwxr-xr-x 5 www-data www-data 4096 Apr 18 00:33 ..
+-rw-r--r-- 1 www-data www-data    0 Apr 18 01:05 app.css
+-rw-r--r-- 1 www-data www-data 2314 Apr 18 01:05 app.html
+-rw-r--r-- 1 www-data www-data 5581 Apr 18 01:05 app.js
+-rw-r--r-- 1 www-data www-data   47 Apr 18 00:33 prompt.txt
+-rw-r--r-- 1 www-data www-data 3657 Apr 18 00:33 report.csv
+-rw-r--r-- 1 www-data www-data 3657 Apr 18 00:33 reports.csv
+[0m
+Created the interactive reports dashboard with:
+
+- **Summary cards**: Total records, total sales (MYR), unique categories, and unique cases
+- **Search & filters**: Search by case/sender/data, filter by category, filter by case
+- **Data table**: Displays all records with category icons
+- **Detail modal**: Click the eye button to view full data in a SweetAlert pop-up

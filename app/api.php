@@ -144,6 +144,37 @@ function api_get_post_param(string $key, $default = null)
     return $_POST[$key] ?? $default;
 }
 
+function api_delete_directory(string $directory): bool
+{
+    if (!is_dir($directory)) {
+        return true;
+    }
+
+    $items = scandir($directory);
+    if ($items === false) {
+        return false;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+
+        $path = $directory . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($path) && !is_link($path)) {
+            if (!api_delete_directory($path)) {
+                return false;
+            }
+        } else {
+            if (!unlink($path)) {
+                return false;
+            }
+        }
+    }
+
+    return rmdir($directory);
+}
+
 // API Endpoint Functions
 
 function api_auth_login(): void
@@ -1462,7 +1493,7 @@ function api_pages_create(): void
     }
 
     if (app_pages_count_for_user($effectiveUserId) >= app_pages_max_limit()) {
-        api_error('Page limit reached. You can create up to 10 pages.', [], 403);
+        api_error('Page limit reached. You can create up to 3 pages.', [], 403);
     }
 
     if (app_pages_find_by_token($token) !== null) {
@@ -1514,7 +1545,7 @@ function api_reports_create_page_from_csv(): void
     }
 
     if (app_pages_count_for_user($effectiveUserId) >= app_pages_max_limit()) {
-        api_error('Page limit reached. You can create up to 10 pages.', [], 403);
+        api_error('Page limit reached. You can create up to 3 pages.', [], 403);
     }
 
     $token = app_pages_generate_token();
@@ -1546,7 +1577,105 @@ function api_reports_create_page_from_csv(): void
         api_error('Failed to save prompt data.', [], 500);
     }
 
+    if (!is_file($promptPath) || !is_file($csvPath)) {
+        api_error('Required files are missing before generation.', [], 500);
+    }
+
     api_success('Page created', ['page' => $page, 'token' => $token]);
+}
+
+function api_reports_generate_page_from_csv(): void
+{
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $input = api_get_json_input();
+
+    $csv = (string) ($input['csv'] ?? '');
+    $prompt = trim((string) ($input['prompt'] ?? ''));
+    $title = trim((string) ($input['title'] ?? ''));
+
+    if (trim($csv) === '') {
+        api_validation_error(['csv' => 'CSV content is required.']);
+    }
+
+    if (strlen($csv) > 5 * 1024 * 1024) {
+        api_validation_error(['csv' => 'CSV content exceeds the 5MB limit.']);
+    }
+
+    if ($prompt === '') {
+        $prompt = 'Generate an interactive website with this data.';
+    }
+
+    if ($title === '') {
+        $title = 'Reports Data';
+    }
+
+    if (app_pages_count_for_user($effectiveUserId) >= app_pages_max_limit()) {
+        api_error('Page limit reached. You can create up to 3 pages.', [], 403);
+    }
+
+    $token = app_pages_generate_token();
+    if (app_pages_find_by_token($token) !== null) {
+        $token = app_pages_generate_token();
+        if (app_pages_find_by_token($token) !== null) {
+            api_error('Failed to generate a unique page token.', [], 500);
+        }
+    }
+
+    $page = app_pages_create($effectiveUserId, $token, $title, 0);
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $pageDir = $baseDir . '/' . $token;
+    if (!is_dir($pageDir)) {
+        if (!mkdir($pageDir, 0775, true) && !is_dir($pageDir)) {
+            api_error('Page folder could not be created. Check permissions.', [], 500);
+        }
+    }
+
+    $csvPath = $pageDir . '/reports.csv';
+    $csvAltPath = $pageDir . '/report.csv';
+    $promptPath = $pageDir . '/prompt.txt';
+
+    if (file_put_contents($csvPath, $csv) === false) {
+        api_error('Failed to save CSV data.', [], 500);
+    }
+
+    if (file_put_contents($csvAltPath, $csv) === false) {
+        api_error('Failed to save CSV data.', [], 500);
+    }
+
+    if (file_put_contents($promptPath, $prompt) === false) {
+        api_error('Failed to save prompt data.', [], 500);
+    }
+
+    $scriptPath = dirname(__DIR__) . '/scripts/generate_page.sh';
+    if (!is_file($scriptPath)) {
+        api_error('Generator script not found on server.', [], 500);
+    }
+
+    if (!function_exists('exec')) {
+        api_error('Command execution is disabled on this server.', [], 500);
+    }
+
+    $logDir = dirname(__DIR__) . '/logs';
+    if (!is_dir($logDir)) {
+        if (!mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+            api_error('Log folder could not be created.', [], 500);
+        }
+    }
+
+    $logFile = $logDir . '/page_generate_' . $token . '.log';
+    $command = 'bash ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($token)
+        . ' > ' . escapeshellarg($logFile) . ' 2>&1 &';
+
+    exec($command, $output, $statusCode);
+    if ($statusCode !== 0) {
+        api_error('Failed to start page generation.', [], 500);
+    }
+
+    api_success('Page generation started', ['page' => $page, 'token' => $token]);
 }
 
 function api_pages_update(): void
@@ -1599,11 +1728,98 @@ function api_pages_delete(): void
         api_forbidden('Page not found or access denied');
     }
 
+    $token = trim((string) ($page['token'] ?? ''));
+    if ($token === '' || preg_match('/^[A-Za-z0-9_-]+$/', $token) !== 1) {
+        api_error('Invalid page token.', [], 500);
+    }
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $resolvedBaseDir = realpath($baseDir) ?: $baseDir;
+    $pageDir = $baseDir . '/' . $token;
+    $resolvedPageDir = realpath($pageDir);
+
+    if ($resolvedPageDir !== false && str_starts_with($resolvedPageDir, rtrim($resolvedBaseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+        if (!api_delete_directory($resolvedPageDir)) {
+            api_error('Failed to delete page files.', [], 500);
+        }
+    }
+
     if (!app_pages_delete($effectiveUserId, $pageId)) {
         api_error('Failed to delete page');
     }
 
     api_success('Page deleted');
+}
+
+function api_pages_generate_existing(): void
+{
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $pageId = (int) api_get_query_param('id');
+    if ($pageId <= 0) {
+        api_validation_error(['id' => 'Page ID is required']);
+    }
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $page = app_pages_find_for_user($effectiveUserId, $pageId);
+    if ($page === null) {
+        api_forbidden('Page not found or access denied');
+    }
+
+    $token = trim((string) ($page['token'] ?? ''));
+    if ($token === '' || preg_match('/^[A-Za-z0-9_-]+$/', $token) !== 1) {
+        api_error('Invalid page token.', [], 500);
+    }
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $pageDir = $baseDir . '/' . $token;
+    $promptPath = $pageDir . '/prompt.txt';
+    $csvPath = $pageDir . '/reports.csv';
+    $csvAltPath = $pageDir . '/report.csv';
+
+    if (!is_dir($pageDir)) {
+        api_error('Page folder does not exist.', [], 500);
+    }
+
+    if (!is_file($promptPath) || (!is_file($csvPath) && !is_file($csvAltPath))) {
+        api_error('Required files are missing. Ensure prompt.txt and reports.csv exist.', [], 500);
+    }
+
+    $scriptPath = dirname(__DIR__) . '/scripts/generate_page.sh';
+    if (!is_file($scriptPath)) {
+        api_error('Generator script not found on server.', [], 500);
+    }
+
+    if (!function_exists('exec')) {
+        api_error('Command execution is disabled on this server.', [], 500);
+    }
+
+    $logDir = dirname(__DIR__) . '/logs';
+    if (!is_dir($logDir)) {
+        if (!mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+            api_error('Log folder could not be created.', [], 500);
+        }
+    }
+
+    $statusFile = $logDir . '/page_generate_' . $token . '.status';
+    if (is_file($statusFile)) {
+        $currentStatus = trim((string) file_get_contents($statusFile));
+        if ($currentStatus === 'running') {
+            api_error('Generation is already running.', [], 409);
+        }
+    }
+
+    $logFile = $logDir . '/page_generate_' . $token . '.log';
+    $command = 'bash ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($token)
+        . ' > ' . escapeshellarg($logFile) . ' 2>&1 &';
+
+    exec($command, $output, $statusCode);
+    if ($statusCode !== 0) {
+        api_error('Failed to start page generation.', [], 500);
+    }
+
+    api_success('Page generation started', ['page' => $page, 'token' => $token]);
 }
 
 function api_require_whatsapp_access(): array {

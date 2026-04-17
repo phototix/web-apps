@@ -2289,7 +2289,7 @@ function app_page_reports(): void {
                 }
 
                 try {
-                    const response = await fetch('/api/reports/pages', {
+                    const response = await fetch('/api/reports/pages/generate', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -2332,8 +2332,8 @@ function app_page_reports(): void {
                     if (window.Swal) {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Page created',
-                            html: token ? `Open your page: <a href="${pageUrl}" target="_blank" rel="noopener">${pageUrl}</a>` : 'Your page has been created.',
+                            title: 'Generation started',
+                            html: token ? `Open your page: <a href="${pageUrl}" target="_blank" rel="noopener">${pageUrl}</a>` : 'Your page generation has started.',
                             confirmButtonText: 'Done'
                         });
                     }

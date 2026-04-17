@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 Swal.fire({
                     icon: 'warning',
                     title: 'Delete Page',
-                    text: `Delete ${token}? This only removes tracking, files remain on disk.`,
+                    text: `Delete ${token}? This will remove tracking and delete files on disk.`,
                     showCancelButton: true,
                     confirmButtonText: 'Delete',
                     cancelButtonText: 'Cancel'

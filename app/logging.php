@@ -35,6 +35,143 @@ function app_log(string $message, string $level = 'INFO', ?array $context = null
     }
 }
 
+function app_audit_action_labels(): array
+{
+    return [
+        'login' => 'Login',
+        'logout' => 'Logout',
+        'delete_message' => 'Delete Messages',
+        'delete_page' => 'Delete Pages',
+        'archive_group' => 'Archive Group',
+        'unarchive_group' => 'Unarchive Group',
+        'edit_page' => 'Edit Pages',
+        'create_session' => 'Create New Session',
+        'delete_session' => 'Delete Session',
+        'delete_user' => 'Delete User',
+    ];
+}
+
+function app_log_audit(string $action, array $context = [], ?array $actor = null): void
+{
+    $actorData = $actor ?? app_current_user();
+    $requestIp = $_SERVER['REMOTE_ADDR'] ?? null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+    $baseContext = [
+        'audit' => true,
+        'action' => $action,
+        'actor_id' => $actorData['id'] ?? null,
+        'actor_name' => $actorData['name'] ?? null,
+        'actor_email' => $actorData['email'] ?? null,
+        'actor_role' => $actorData['role'] ?? null,
+        'actor_parent_id' => $actorData['parent_id'] ?? null,
+        'ip' => $requestIp,
+        'user_agent' => $userAgent,
+    ];
+
+    app_log('Audit ' . $action, 'INFO', array_merge($baseContext, $context));
+}
+
+function app_parse_audit_log_line(string $line): ?array
+{
+    $trimmed = trim($line);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    if (!preg_match('/^\[(.+?)\]\s+(\w+):\s+(.*)$/', $trimmed, $matches)) {
+        return null;
+    }
+
+    $timestamp = $matches[1];
+    $level = $matches[2];
+    $rest = $matches[3];
+
+    $context = null;
+    $message = $rest;
+    $jsonMatch = [];
+    if (preg_match('/\s(\{.*\})$/', $rest, $jsonMatch)) {
+        $json = $jsonMatch[1];
+        $message = trim(substr($rest, 0, -strlen($json)));
+        $decoded = json_decode($json, true);
+        if (is_array($decoded)) {
+            $context = $decoded;
+        }
+    }
+
+    if (!is_array($context) || empty($context['audit'])) {
+        return null;
+    }
+
+    $action = $context['action'] ?? null;
+    if (!is_string($action) || $action === '') {
+        return null;
+    }
+
+    return [
+        'timestamp' => $timestamp,
+        'level' => $level,
+        'message' => $message,
+        'action' => $action,
+        'context' => $context,
+    ];
+}
+
+function app_get_audit_entries_for_user(array $viewer, int $limit = 200): array
+{
+    $role = $viewer['role'] ?? '';
+    if (!in_array($role, ['admin', 'superadmin'], true)) {
+        return [];
+    }
+
+    $logDir = dirname(__DIR__) . '/logs';
+    if (!is_dir($logDir)) {
+        return [];
+    }
+
+    $files = glob($logDir . '/*.log') ?: [];
+    rsort($files);
+
+    $entries = [];
+    $viewerId = (int) ($viewer['id'] ?? 0);
+
+    foreach ($files as $file) {
+        if (!is_file($file) || !is_readable($file)) {
+            continue;
+        }
+
+        $lines = file($file, FILE_IGNORE_NEW_LINES);
+        if ($lines === false) {
+            continue;
+        }
+
+        $lines = array_reverse($lines);
+        foreach ($lines as $line) {
+            $entry = app_parse_audit_log_line($line);
+            if ($entry === null) {
+                continue;
+            }
+
+            $context = $entry['context'] ?? [];
+            $actorId = (int) ($context['actor_id'] ?? 0);
+            $actorParentId = (int) ($context['actor_parent_id'] ?? 0);
+
+            if ($role === 'admin') {
+                if ($actorId !== $viewerId && $actorParentId !== $viewerId) {
+                    continue;
+                }
+            }
+
+            $entries[] = $entry;
+            if (count($entries) >= $limit) {
+                return $entries;
+            }
+        }
+    }
+
+    return $entries;
+}
+
 function app_log_request(): void
 {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';

@@ -92,6 +92,45 @@ function app_whatsapp_api_get_binary(string $endpoint, ?string $apiKey = null): 
     return $response;
 }
 
+function app_whatsapp_api_get_binary_with_headers(string $endpoint, array $extraHeaders = [], ?string $apiKey = null): string {
+    $baseUrl = app_whatsapp_api_endpoint();
+    $url = $baseUrl . $endpoint;
+
+    $ch = curl_init();
+
+    $headers = $extraHeaders;
+    if ($apiKey) {
+        $headers[] = 'x-api-key: ' . $apiKey;
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_BINARYTRANSFER => true,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new Exception('WAHA API connection error: ' . $error);
+    }
+
+    curl_close($ch);
+
+    if ($httpCode >= 400) {
+        $errorData = json_decode($response, true);
+        $errorMessage = $errorData['message'] ?? $errorData['error'] ?? 'Unknown error';
+        throw new Exception('WAHA API error: ' . $errorMessage, $httpCode);
+    }
+
+    return $response;
+}
+
 function app_whatsapp_api_post(string $endpoint, array $data = [], ?string $apiKey = null): array {
     return app_whatsapp_api_call('POST', $endpoint, $data, $apiKey);
 }

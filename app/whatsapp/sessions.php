@@ -179,6 +179,9 @@ function app_whatsapp_get_user_sessions(int $userId): array {
         try {
             $statusInfo = app_whatsapp_get_session_status($session['id']);
             $session['status'] = $statusInfo['status'];
+            $wahaStatus = $statusInfo['waha_status'] ?? '';
+            $session['can_view_screenshot'] = ($wahaStatus === 'working');
+            $session['can_show_screenshot'] = ($wahaStatus === 'scan_qr_code');
             
             // Store session data including account info if available
             if (isset($statusInfo['session_data'])) {

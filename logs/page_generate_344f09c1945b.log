@@ -1,0 +1,19 @@
+[0m
+> build · big-pickle
+[0m
+[0m✱ [0mGlob "*.csv"[90m 2 matches[0m
+[0m→ [0mRead report.csv
+[0m
+[0m← [0mWrite app.html
+Wrote file successfully.
+[0m
+[0m← [0mWrite app.js
+Wrote file successfully.
+[0m
+[0m→ [0mRead reports.csv
+Done. Created an interactive sales report with:
+- Summary cards (total revenue, transaction count, average value, active cases)
+- Filterable table by case, category, date range, and minimum amount
+- View details popup using SweetAlert2
+- CSV export functionality
+- Responsive Bootstrap layout

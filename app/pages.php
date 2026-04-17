@@ -46,9 +46,10 @@ function app_page_login(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
+        $otp = trim((string) ($_POST['otp'] ?? ''));
 
         try {
-            if (app_attempt_login($email, $password)) {
+            if (app_attempt_login($email, $password, $otp)) {
                 app_flash('success', 'Welcome back.');
                 app_redirect('/welcome');
             }
@@ -153,25 +154,48 @@ function app_page_welcome(): void
     </div>
     
     <div class="row">
+        <?php if (($user['role'] ?? '') === 'admin'): ?>
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
+            <?php
+            $expiryDate = $user['expiry_date'] ?? null;
+            $expiryLabel = 'Not set';
+            $daysUntilExpiry = null;
+            $expiryAccent = 'primary';
+            if (!empty($expiryDate)) {
+                $expiryTimestamp = strtotime($expiryDate);
+                $expiryLabel = date('M d, Y', $expiryTimestamp);
+                $daysUntilExpiry = (int) floor(($expiryTimestamp - strtotime('today')) / 86400);
+                if ($daysUntilExpiry < 0) {
+                    $expiryAccent = 'danger';
+                } elseif ($daysUntilExpiry <= 7) {
+                    $expiryAccent = 'warning';
+                } else {
+                    $expiryAccent = 'primary';
+                }
+            }
+            ?>
+            <div class="card border-left-<?= $expiryAccent ?> shadow h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                User ID
+                            <div class="text-xs font-weight-bold text-<?= $expiryAccent ?> text-uppercase mb-1">
+                                Expiry Date
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                #<?= htmlspecialchars((string) $user['id'], ENT_QUOTES, 'UTF-8') ?>
+                                <?= htmlspecialchars($expiryLabel, ENT_QUOTES, 'UTF-8') ?>
                             </div>
+                            <?php if ($daysUntilExpiry !== null): ?>
+                                <div class="small text-muted">Days until expiry: <?= $daysUntilExpiry ?></div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-auto">
-                            <i class="fas fa-user fa-2x text-gray-300"></i>
+                            <i class="fas fa-calendar-alt fa-2x text-gray-300"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        <?php endif; ?>
         
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
@@ -312,43 +336,211 @@ function app_page_settings(): void
         'MMK' => 'MMK - Myanmar Kyat'
     ];
     $defaultCurrency = $settings['default_currency'] ?? 'USD';
+
+    $mfaSecret = (string) ($settings['mfa_secret'] ?? '');
+    $mfaEnabled = !empty($settings['mfa_enabled']);
+    $passwordLastChangedAt = $settings['password_last_changed_at'] ?? null;
+    $lastPasswordChangedLabel = 'Never';
+    if (!empty($passwordLastChangedAt) && strtotime((string) $passwordLastChangedAt) !== false) {
+        $lastPasswordChangedLabel = date('M d, Y', strtotime((string) $passwordLastChangedAt));
+    }
+    $issuer = 'ERP Ezy Chat';
+    $accountLabel = $effectiveUser['email'] ?? 'user';
+    $otpAuthUrl = '';
+    $qrCodeUrl = '';
+    if ($mfaSecret !== '') {
+        $otpLabel = rawurlencode($issuer . ':' . $accountLabel);
+        $otpAuthUrl = 'otpauth://totp/' . $otpLabel . '?secret=' . $mfaSecret . '&issuer=' . rawurlencode($issuer);
+        $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($otpAuthUrl);
+    }
     
     // Get current page from query parameter
     $currentPage = $_GET['page'] ?? 'account';
-    $validPages = ['account', 'global', 'category'];
+    $validPages = ['account', 'global', 'category', 'security'];
     
     if (!in_array($currentPage, $validPages)) {
         $currentPage = 'account';
     }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_global_settings') {
-        $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
-        if (!array_key_exists($requestedCurrency, $currencyOptions)) {
-            app_flash('error', 'Invalid currency selection.');
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = (string) ($_POST['settings_action'] ?? '');
+
+        if ($action === 'update_global_settings') {
+            $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
+            if (!array_key_exists($requestedCurrency, $currencyOptions)) {
+                app_flash('error', 'Invalid currency selection.');
+                app_redirect('/settings?page=global');
+            }
+
+            $settings['default_currency'] = $requestedCurrency;
+
+            try {
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings === false) {
+                    app_flash('error', 'Failed to save settings.');
+                    app_redirect('/settings?page=global');
+                }
+
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt->execute([
+                    'settings' => $encodedSettings,
+                    'id' => $effectiveUserId
+                ]);
+                app_flash('success', 'Global settings updated.');
+            } catch (Exception $e) {
+                app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to save settings.');
+            }
+
             app_redirect('/settings?page=global');
         }
 
-        $settings['default_currency'] = $requestedCurrency;
-        $encodedSettings = json_encode($settings);
-        if ($encodedSettings === false) {
-            app_flash('error', 'Failed to save settings.');
-            app_redirect('/settings?page=global');
+        if ($action === 'generate_mfa_secret') {
+            $settings['mfa_secret'] = app_generate_mfa_secret();
+            $settings['mfa_enabled'] = false;
+            $settings['mfa_enabled_at'] = null;
+
+            try {
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings === false) {
+                    app_flash('error', 'Failed to generate MFA secret.');
+                    app_redirect('/settings?page=security');
+                }
+
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt->execute([
+                    'settings' => $encodedSettings,
+                    'id' => $effectiveUserId
+                ]);
+                app_flash('success', 'New MFA secret generated.');
+            } catch (Exception $e) {
+                app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to generate MFA secret.');
+            }
+
+            app_redirect('/settings?page=security');
         }
 
-        try {
-            $db = app_db();
-            $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
-            $stmt->execute([
-                'settings' => $encodedSettings,
-                'id' => $effectiveUserId
-            ]);
-            app_flash('success', 'Global settings updated.');
-        } catch (Exception $e) {
-            app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
-            app_flash('error', 'Failed to save settings.');
+        if ($action === 'enable_mfa') {
+            $otp = trim((string) ($_POST['otp'] ?? ''));
+            $secret = (string) ($settings['mfa_secret'] ?? '');
+
+            if ($secret === '') {
+                app_flash('error', 'Generate a secret key before enabling MFA.');
+                app_redirect('/settings?page=security');
+            }
+
+            if ($otp === '' || !app_validate_mfa_otp($secret, $otp)) {
+                app_flash('error', 'Invalid MFA code.');
+                app_redirect('/settings?page=security');
+            }
+
+            $settings['mfa_enabled'] = true;
+            $settings['mfa_enabled_at'] = date('Y-m-d H:i:s');
+
+            try {
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings === false) {
+                    app_flash('error', 'Failed to enable MFA.');
+                    app_redirect('/settings?page=security');
+                }
+
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt->execute([
+                    'settings' => $encodedSettings,
+                    'id' => $effectiveUserId
+                ]);
+                app_flash('success', 'MFA enabled successfully.');
+                app_log_audit('enable_mfa', [], $user);
+            } catch (Exception $e) {
+                app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to enable MFA.');
+            }
+
+            app_redirect('/settings?page=security');
         }
 
-        app_redirect('/settings?page=global');
+        if ($action === 'disable_mfa') {
+            $settings['mfa_enabled'] = false;
+            $settings['mfa_enabled_at'] = null;
+
+            try {
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings === false) {
+                    app_flash('error', 'Failed to disable MFA.');
+                    app_redirect('/settings?page=security');
+                }
+
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt->execute([
+                    'settings' => $encodedSettings,
+                    'id' => $effectiveUserId
+                ]);
+                app_flash('success', 'MFA disabled.');
+                app_log_audit('disable_mfa', [], $user);
+            } catch (Exception $e) {
+                app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to disable MFA.');
+            }
+
+            app_redirect('/settings?page=security');
+        }
+
+        if ($action === 'update_password') {
+            $currentPassword = (string) ($_POST['current_password'] ?? '');
+            $newPassword = (string) ($_POST['new_password'] ?? '');
+            $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+
+            if ($newPassword === '' || strlen($newPassword) < 8) {
+                app_flash('error', 'Password must be at least 8 characters.');
+                app_redirect('/settings?page=security');
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                app_flash('error', 'New password and confirmation do not match.');
+                app_redirect('/settings?page=security');
+            }
+
+            try {
+                $db = app_db();
+                $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = :id');
+                $stmt->execute(['id' => $effectiveUserId]);
+                $row = $stmt->fetch();
+
+                if (!$row || !password_verify($currentPassword, $row['password_hash'] ?? '')) {
+                    app_flash('error', 'Current password is incorrect.');
+                    app_redirect('/settings?page=security');
+                }
+
+                $stmt = $db->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id');
+                $stmt->execute([
+                    'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+                    'id' => $effectiveUserId
+                ]);
+
+                $settings['password_last_changed_at'] = date('Y-m-d H:i:s');
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings !== false) {
+                    $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                    $stmt->execute([
+                        'settings' => $encodedSettings,
+                        'id' => $effectiveUserId
+                    ]);
+                }
+
+                app_flash('success', 'Password updated.');
+                app_log_audit('change_password', [], $user);
+            } catch (Exception $e) {
+                app_log('Failed to update password: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to update password.');
+            }
+
+            app_redirect('/settings?page=security');
+        }
     }
 
     app_render_head('Settings');
@@ -376,6 +568,14 @@ function app_page_settings(): void
                             <div>
                                 <div class="fw-medium">Account</div>
                                 <small class="text-muted">Profile and preferences</small>
+                            </div>
+                        </a>
+                        <a href="/settings?page=security" 
+                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'security' ? 'active' : '' ?>">
+                            <i class="fas fa-shield-alt me-3"></i>
+                            <div>
+                                <div class="fw-medium">Security</div>
+                                <small class="text-muted">MFA and password</small>
                             </div>
                         </a>
                         <a href="/settings?page=global" 
@@ -407,13 +607,13 @@ function app_page_settings(): void
         
         <!-- Right Content Area -->
         <div class="col-lg-9 col-md-8">
-            <div class="card mb-4">
+                <div class="card mb-4">
                 <div class="card-header bg-white border-bottom-0">
                     <h4 class="mb-0">
-                        <?= $currentPage === 'account' ? 'Account Settings' : ($currentPage === 'global' ? 'Global Settings' : 'Category Management') ?>
+                        <?= $currentPage === 'account' ? 'Account Settings' : ($currentPage === 'security' ? 'Security' : ($currentPage === 'global' ? 'Global Settings' : 'Category Management')) ?>
                     </h4>
                     <p class="text-muted mb-0">
-                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : ($currentPage === 'global' ? 'Configure default currency and display settings' : 'Manage your categories and group organization') ?>
+                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : ($currentPage === 'security' ? 'Protect your account with MFA and password controls' : ($currentPage === 'global' ? 'Configure default currency and display settings' : 'Manage your categories and group organization')) ?>
                     </p>
                 </div>
                 <div class="card-body">
@@ -463,6 +663,87 @@ function app_page_settings(): void
                                                 </label>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php elseif ($currentPage === 'security'): ?>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Multi-Factor Authentication</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <span class="badge <?= $mfaEnabled ? 'bg-success' : 'bg-secondary' ?>">
+                                                <?= $mfaEnabled ? 'Enabled' : 'Not Enabled' ?>
+                                            </span>
+                                        </div>
+                                        <p class="text-muted">Scan the QR code with your Authenticator app and enter the 6-digit code to enable MFA.</p>
+
+                                        <?php if ($mfaSecret === ''): ?>
+                                            <form method="post" action="/settings?page=security">
+                                                <input type="hidden" name="settings_action" value="generate_mfa_secret">
+                                                <button type="submit" class="btn btn-outline-primary">Generate Secret</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <div class="mb-3">
+                                                <label class="form-label">Secret Key</label>
+                                                <input type="text" class="form-control" value="<?= htmlspecialchars($mfaSecret, ENT_QUOTES, 'UTF-8') ?>" readonly>
+                                                <small class="text-muted">Store this key securely. You can use it to restore MFA.</small>
+                                            </div>
+                                            <div class="mb-3 text-center">
+                                                <img src="<?= htmlspecialchars($qrCodeUrl, ENT_QUOTES, 'UTF-8') ?>" alt="MFA QR Code" class="img-fluid" style="max-width: 200px;">
+                                            </div>
+                                            <?php if (!$mfaEnabled): ?>
+                                                <form method="post" action="/settings?page=security">
+                                                    <input type="hidden" name="settings_action" value="enable_mfa">
+                                                    <div class="mb-3">
+                                                        <label class="form-label" for="mfa_code">Authenticator Code</label>
+                                                        <input type="text" class="form-control" id="mfa_code" name="otp" placeholder="Enter 6-digit code" inputmode="numeric" autocomplete="one-time-code" required>
+                                                    </div>
+                                                    <button type="submit" class="btn btn-primary">Enable MFA</button>
+                                                </form>
+                                                <form method="post" action="/settings?page=security" class="mt-2">
+                                                    <input type="hidden" name="settings_action" value="generate_mfa_secret">
+                                                    <button type="submit" class="btn btn-outline-secondary">Reset Secret</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <form method="post" action="/settings?page=security">
+                                                    <input type="hidden" name="settings_action" value="disable_mfa">
+                                                    <button type="submit" class="btn btn-outline-danger">Disable MFA</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Password Policy</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted mb-2">Password change policy: every 6 months.</p>
+                                        <p class="text-muted">Last changed: <strong><?= htmlspecialchars($lastPasswordChangedLabel, ENT_QUOTES, 'UTF-8') ?></strong></p>
+                                        <hr>
+                                        <form method="post" action="/settings?page=security">
+                                            <input type="hidden" name="settings_action" value="update_password">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="current_password">Current Password</label>
+                                                <input type="password" class="form-control" id="current_password" name="current_password" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label" for="new_password">New Password</label>
+                                                <input type="password" class="form-control" id="new_password" name="new_password" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label" for="confirm_password">Confirm New Password</label>
+                                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Update Password</button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -3132,6 +3413,321 @@ function app_page_cases(): void
     app_render_footer();
 }
 
+function app_format_audit_details(array $entry): string
+{
+    $context = $entry['context'] ?? [];
+    $details = [];
+
+    if (!empty($context['title'])) {
+        $details[] = 'Title: ' . htmlspecialchars((string) $context['title'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['page_id'])) {
+        $details[] = 'Page ID: ' . (int) $context['page_id'];
+    }
+    if (!empty($context['session_name'])) {
+        $details[] = 'Session: ' . htmlspecialchars((string) $context['session_name'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['session_id'])) {
+        $details[] = 'Session ID: ' . (int) $context['session_id'];
+    }
+    if (!empty($context['group_id'])) {
+        $details[] = 'Group: ' . htmlspecialchars((string) $context['group_id'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['message_id'])) {
+        $details[] = 'Message ID: ' . (int) $context['message_id'];
+    }
+    if (!empty($context['target_user_id'])) {
+        $details[] = 'User ID: ' . (int) $context['target_user_id'];
+    }
+    if (!empty($context['ip'])) {
+        $details[] = 'IP: ' . htmlspecialchars((string) $context['ip'], ENT_QUOTES, 'UTF-8');
+    }
+
+    return $details ? implode(' | ', $details) : '-';
+}
+
+function app_page_audits(): void
+{
+    app_require_auth();
+    $user = app_current_user();
+
+    if (!in_array($user['role'] ?? '', ['admin', 'superadmin'], true)) {
+        app_flash('error', 'Access denied');
+        app_redirect('/welcome');
+    }
+
+    $selectedAction = trim((string) ($_GET['action'] ?? ''));
+    $dateFrom = trim((string) ($_GET['from'] ?? ''));
+    $dateTo = trim((string) ($_GET['to'] ?? ''));
+
+    $dateRegex = '/^\d{4}-\d{2}-\d{2}$/';
+    $fromTs = preg_match($dateRegex, $dateFrom) ? strtotime($dateFrom . ' 00:00:00') : null;
+    $toTs = preg_match($dateRegex, $dateTo) ? strtotime($dateTo . ' 23:59:59') : null;
+
+    $entries = app_get_audit_entries_for_user($user, 200);
+    $entries = array_values(array_filter($entries, function (array $entry) use ($selectedAction, $fromTs, $toTs): bool {
+        if ($selectedAction !== '' && ($entry['action'] ?? '') !== $selectedAction) {
+            return false;
+        }
+
+        if ($fromTs !== null || $toTs !== null) {
+            $timestamp = strtotime((string) ($entry['timestamp'] ?? ''));
+            if (!$timestamp) {
+                return false;
+            }
+            if ($fromTs !== null && $timestamp < $fromTs) {
+                return false;
+            }
+            if ($toTs !== null && $timestamp > $toTs) {
+                return false;
+            }
+        }
+
+        return true;
+    }));
+    $actionLabels = app_audit_action_labels();
+
+    app_render_head('Master Audit');
+    app_render_dashboard_start($user);
+    app_render_flash();
+    ?>
+    <div class="container-fluid">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="mb-1">Master Audit</h2>
+                <div class="text-muted small">
+                    <?php if (($user['role'] ?? '') === 'admin'): ?>
+                        Showing your activity and your child users.
+                    <?php else: ?>
+                        Showing all audit activity.
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-2 mt-md-0">
+                <button type="button" class="btn btn-outline-secondary" id="audit-export-csv">
+                    <i class="fas fa-file-csv me-1"></i> CSV
+                </button>
+                <button type="button" class="btn btn-outline-success" id="audit-export-xlsx">
+                    <i class="fas fa-file-excel me-1"></i> Excel
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="audit-export-pdf">
+                    <i class="fas fa-file-pdf me-1"></i> PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Filters</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Action</label>
+                        <select name="action" class="form-select">
+                            <option value="">All actions</option>
+                            <?php foreach ($actionLabels as $actionKey => $actionLabel): ?>
+                                <option value="<?= htmlspecialchars($actionKey, ENT_QUOTES, 'UTF-8') ?>" <?= $selectedAction === $actionKey ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($actionLabel, ENT_QUOTES, 'UTF-8') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">From</label>
+                        <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($dateFrom, ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">To</label>
+                        <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($dateTo, ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-12 col-md-2 d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                        <a class="btn btn-outline-secondary" href="/audits">Clear</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Activity</h5>
+                <span class="badge bg-secondary">Showing <?= count($entries) ?> entries</span>
+            </div>
+            <div class="card-body">
+                <?php if (empty($entries)): ?>
+                    <div class="text-muted">No audit activity recorded yet.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="audits-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Action</th>
+                                    <th>Actor</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($entries as $entry): ?>
+                                    <?php
+                                    $context = $entry['context'] ?? [];
+                                    $actionKey = $entry['action'] ?? '';
+                                    $actionLabel = $actionLabels[$actionKey] ?? ucwords(str_replace('_', ' ', (string) $actionKey));
+                                    $actorName = trim((string) ($context['actor_name'] ?? ''));
+                                    $actorEmail = trim((string) ($context['actor_email'] ?? ''));
+                                    $actorId = (int) ($context['actor_id'] ?? 0);
+                                    $actorRole = trim((string) ($context['actor_role'] ?? ''));
+                                    $actorText = $actorName !== '' ? $actorName : ($actorEmail !== '' ? $actorEmail : ($actorId ? 'User #' . $actorId : 'Unknown'));
+                                    $timestamp = (string) ($entry['timestamp'] ?? '');
+                                    $dateText = $timestamp !== '' ? date('M d, Y H:i', strtotime($timestamp)) : '';
+                                    ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($dateText, ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                <?= htmlspecialchars($actionLabel, ENT_QUOTES, 'UTF-8') ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div><?= htmlspecialchars($actorText, ENT_QUOTES, 'UTF-8') ?></div>
+                                            <?php if ($actorRole !== ''): ?>
+                                                <div class="text-muted small"><?= htmlspecialchars(ucfirst($actorRole), ENT_QUOTES, 'UTF-8') ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-muted small">
+                                            <?= app_format_audit_details($entry) ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+
+    ?>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        (function() {
+            const table = document.getElementById('audits-table');
+            const csvButton = document.getElementById('audit-export-csv');
+            const xlsxButton = document.getElementById('audit-export-xlsx');
+            const pdfButton = document.getElementById('audit-export-pdf');
+
+            function getTableData() {
+                if (!table) {
+                    return { headers: [], rows: [] };
+                }
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
+                    return Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim());
+                });
+                return { headers, rows };
+            }
+
+            function downloadFile(blob, filename) {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }
+
+            function buildCsvContent(data) {
+                const escapeValue = value => {
+                    if (value.includes('"') || value.includes(',') || value.includes('\n')) {
+                        return '"' + value.replace(/"/g, '""') + '"';
+                    }
+                    return value;
+                };
+                const lines = [data.headers.map(escapeValue).join(',')];
+                data.rows.forEach(row => {
+                    lines.push(row.map(escapeValue).join(','));
+                });
+                return lines.join('\n');
+            }
+
+            function showNoData() {
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No data to export',
+                        text: 'There are no rows to export.'
+                    });
+                } else {
+                    alert('No data to export.');
+                }
+            }
+
+            function exportCsv() {
+                const data = getTableData();
+                if (!data.rows.length) {
+                    showNoData();
+                    return;
+                }
+                const csvContent = buildCsvContent(data);
+                downloadFile(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'audits.csv');
+            }
+
+            function exportXlsx() {
+                const data = getTableData();
+                if (!data.rows.length || !window.XLSX) {
+                    showNoData();
+                    return;
+                }
+                const worksheet = window.XLSX.utils.aoa_to_sheet([data.headers, ...data.rows]);
+                const workbook = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Audits');
+                window.XLSX.writeFile(workbook, 'audits.xlsx');
+            }
+
+            function exportPdf() {
+                const data = getTableData();
+                if (!data.rows.length || !window.jspdf || !window.jspdf.jsPDF) {
+                    showNoData();
+                    return;
+                }
+                const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+                doc.setFontSize(12);
+                doc.text('Master Audit', 40, 40);
+                if (doc.autoTable) {
+                    doc.autoTable({
+                        startY: 60,
+                        head: [data.headers],
+                        body: data.rows,
+                        styles: { fontSize: 8, cellPadding: 3 }
+                    });
+                }
+                doc.save('audits.pdf');
+            }
+
+            if (csvButton) {
+                csvButton.addEventListener('click', exportCsv);
+            }
+            if (xlsxButton) {
+                xlsxButton.addEventListener('click', exportXlsx);
+            }
+            if (pdfButton) {
+                pdfButton.addEventListener('click', exportPdf);
+            }
+        })();
+    </script>
+    <?php
+
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
 function app_pages_max_limit(): int
 {
     return 3;
@@ -3432,9 +4028,11 @@ function app_page_pages(): void
                                                                 Share
                                                             </button>
                                                         <?php endif; ?>
-                                                        <button class="btn btn-sm btn-outline-danger page-delete-btn" type="button" data-page-id="<?= (int) $page['id'] ?>" data-page-token="<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?>">
-                                                            Delete
-                                                        </button>
+                                                        <?php if (($user['role'] ?? '') !== 'users'): ?>
+                                                            <button class="btn btn-sm btn-outline-danger page-delete-btn" type="button" data-page-id="<?= (int) $page['id'] ?>" data-page-token="<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?>">
+                                                                Delete
+                                                            </button>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -3598,7 +4196,7 @@ function app_page_pages(): void
     app_render_scripts();
     if ($isAuthenticated) {
         ?>
-        <script src="/js/pages-management.js"></script>
+        <script src="/js/pages-management.js?bump_version=1"></script>
         <script>
             function appPagesShare(button) {
                 if (!button) {
@@ -3766,6 +4364,102 @@ function app_page_logout(): void
     app_redirect('/login');
 }
 
+function app_page_expired(): void
+{
+    app_require_auth();
+
+    $user = app_current_user();
+    if ($user !== null && ($user['role'] ?? '') === 'users') {
+        app_redirect('/restricted');
+    }
+
+    app_render_head('Account Expired');
+    app_render_dashboard_start($user);
+
+    ?>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-xl-8 col-lg-9">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-5 text-center">
+                        <div class="mb-4">
+                            <i class="fas fa-hourglass-end fa-3x text-danger"></i>
+                        </div>
+                        <h3 class="mb-3">Account Expired</h3>
+                        <p class="text-muted mb-4">Your admin account has expired. Please contact your agent for renewal.</p>
+                        <?php
+                        $agentContacts = trim((string) ($user['agent_contacts'] ?? ''));
+                        if ($agentContacts === '') {
+                            $agentContacts = "Brandon Chong (Developer)\nEmail: brandon@kkbuddy.com\nPhone: +6011 1879 6268";
+                        }
+                        ?>
+                        <div class="text-start border rounded p-3 bg-light">
+                            <div class="fw-semibold mb-2">Agent Contacts</div>
+                            <div class="text-muted small">
+                                <?= nl2br(htmlspecialchars($agentContacts, ENT_QUOTES, 'UTF-8')) ?>
+                            </div>
+                        </div>
+                        <a href="/logout" class="btn btn-outline-secondary">Sign out</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
+function app_page_restricted(): void
+{
+    app_require_auth();
+
+    $user = app_current_user();
+    if ($user !== null && ($user['role'] ?? '') === 'admin' && app_is_admin_account_expired($user)) {
+        app_redirect('/expired');
+    }
+
+    $parent = null;
+    if ($user !== null && ($user['role'] ?? '') === 'users') {
+        $parent = app_get_parent_user($user);
+    }
+
+    app_render_head('Restricted');
+    app_render_dashboard_start($user);
+
+    ?>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-xl-8 col-lg-9">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-5 text-center">
+                        <div class="mb-4">
+                            <i class="fas fa-ban fa-3x text-warning"></i>
+                        </div>
+                        <h3 class="mb-3">Access Restricted</h3>
+                        <p class="text-muted mb-4">
+                            Your parent admin account is expired. Please contact your parent for renewal.
+                            <?php if (!empty($parent['email'])): ?>
+                                <br>
+                                <span class="fw-semibold">Parent email:</span>
+                                <a href="mailto:<?= htmlspecialchars($parent['email'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?= htmlspecialchars($parent['email'], ENT_QUOTES, 'UTF-8') ?>
+                                </a>
+                            <?php endif; ?>
+                        </p>
+                        <a href="/logout" class="btn btn-outline-secondary">Sign out</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
 function app_page_not_found(): void
 {
     http_response_code(404);
@@ -3863,6 +4557,7 @@ function app_render_login_sasoft(): void
                 <form action="/login" method="post">
                     <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-envelope-open"></i> <input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                     <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
+                    <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-key"></i> <input class="form-control" name="otp" placeholder="MFA Code (if enabled)" type="text" inputmode="numeric" autocomplete="one-time-code"></div></div></div>
                     <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
                 </form>
                 <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
@@ -3995,6 +4690,7 @@ function app_render_login_softing(): void
             <form action="/login" method="post">
                 <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                 <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
+                <div class="row"><div class="col-lg-12"><div class="form-group"><input class="form-control" name="otp" placeholder="MFA Code (if enabled)" type="text" inputmode="numeric" autocomplete="one-time-code"></div></div></div>
                 <div class="row"><div class="col-lg-12"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
@@ -4124,6 +4820,7 @@ function app_render_login_anada(): void
             <form action="/login" method="post">
                 <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-envelope-open"></i> <input class="form-control" name="email" placeholder="Email*" type="email" required></div></div></div>
                 <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-lock"></i> <input class="form-control" name="password" placeholder="Password*" type="password" required></div></div></div>
+                <div class="row"><div class="col-lg-12 col-md-12"><div class="form-group"><i class="fas fa-key"></i> <input class="form-control" name="otp" placeholder="MFA Code (if enabled)" type="text" inputmode="numeric" autocomplete="one-time-code"></div></div></div>
                 <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>

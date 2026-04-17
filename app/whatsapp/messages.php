@@ -290,6 +290,83 @@ function app_db_get_group_message_by_whatsapp_id(string $whatsappMessageId): ?ar
     return $stmt->fetch() ?: null;
 }
 
+function app_whatsapp_get_message_for_user(int $messageId, int $userId): ?array {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        SELECT gm.*, ws.user_id, ws.session_name
+        FROM group_messages gm
+        JOIN whatsapp_sessions ws ON gm.session_id = ws.id
+        WHERE gm.id = :id
+        LIMIT 1
+    ");
+    $stmt->execute(['id' => $messageId]);
+    $message = $stmt->fetch();
+
+    if (!$message || (int) $message['user_id'] !== $userId) {
+        return null;
+    }
+
+    return $message;
+}
+
+function app_whatsapp_delete_message_by_id(int $messageId): bool {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("DELETE FROM group_messages WHERE id = :id");
+    return $stmt->execute(['id' => $messageId]);
+}
+
+function app_whatsapp_get_latest_group_message(int $sessionId, string $groupId): ?array {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        SELECT content, media_caption, caption, timestamp
+        FROM group_messages
+        WHERE session_id = :session_id AND group_id = :group_id
+        ORDER BY timestamp DESC
+        LIMIT 1
+    ");
+    $stmt->execute([
+        'session_id' => $sessionId,
+        'group_id' => $groupId
+    ]);
+    return $stmt->fetch() ?: null;
+}
+
+function app_whatsapp_clear_group_last_message(int $sessionId, string $groupId): bool {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        UPDATE whatsapp_groups
+        SET last_message_preview = NULL,
+            last_message_timestamp = NULL,
+            updated_at = NOW()
+        WHERE session_id = :session_id AND group_id = :group_id
+    ");
+    return $stmt->execute([
+        'session_id' => $sessionId,
+        'group_id' => $groupId
+    ]);
+}
+
+function app_whatsapp_delete_remote_message(string $sessionName, string $chatId, string $messageId): void {
+    $endpoints = [
+        "/api/{$sessionName}/messages/{$messageId}",
+        "/api/{$sessionName}/chats/{$chatId}/messages/{$messageId}"
+    ];
+
+    $lastException = null;
+    foreach ($endpoints as $endpoint) {
+        try {
+            app_whatsapp_api_delete($endpoint, app_whatsapp_api_key());
+            return;
+        } catch (Exception $e) {
+            $lastException = $e;
+        }
+    }
+
+    if ($lastException) {
+        throw $lastException;
+    }
+}
+
 function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): array {
     $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
     if (!$group) {

@@ -110,6 +110,7 @@ function app_dispatch_api_request(string $method, string $path): void
         ],
         'DELETE' => [
             '/api/whatsapp/sessions/{id}' => 'api_whatsapp_delete_session',
+            '/api/whatsapp/messages/{id}' => 'api_whatsapp_delete_message',
             '/api/whatsapp/categories/{id}' => 'api_whatsapp_delete_category',
         ],
     ];

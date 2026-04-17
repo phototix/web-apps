@@ -1343,6 +1343,57 @@ function api_whatsapp_assign_message_category(): void {
     }
 }
 
+function api_whatsapp_delete_message(): void {
+    api_require_method('DELETE');
+    $user = api_require_auth();
+
+    if (!in_array($user['role'] ?? '', ['admin', 'superadmin'], true)) {
+        api_error('Access denied. Only administrators can delete messages.', [], 403);
+    }
+
+    $messageIdParam = api_get_query_param('id');
+    if (!$messageIdParam || !is_numeric($messageIdParam)) {
+        api_validation_error(['id' => 'Message ID is required']);
+    }
+
+    $messageId = (int) $messageIdParam;
+
+    try {
+        $effectiveUserId = api_get_effective_user_id($user);
+        $message = app_whatsapp_get_message_for_user($messageId, $effectiveUserId);
+        if (!$message) {
+            api_forbidden('Message not found or access denied');
+        }
+
+        $sessionName = (string) ($message['session_name'] ?? '');
+        $groupId = (string) ($message['group_id'] ?? '');
+        $remoteMessageId = (string) ($message['message_id'] ?? '');
+
+        if ($sessionName === '' || $groupId === '' || $remoteMessageId === '') {
+            throw new Exception('Message metadata missing for remote deletion');
+        }
+
+        app_whatsapp_delete_remote_message($sessionName, $groupId, $remoteMessageId);
+
+        $deleted = app_whatsapp_delete_message_by_id($messageId);
+        if (!$deleted) {
+            api_error('Failed to delete message');
+        }
+
+        $latestMessage = app_whatsapp_get_latest_group_message((int) $message['session_id'], $groupId);
+        if ($latestMessage) {
+            $previewContent = $latestMessage['content'] ?? $latestMessage['media_caption'] ?? $latestMessage['caption'] ?? '';
+            app_db_update_group_last_message((int) $message['session_id'], $groupId, (string) $previewContent, (int) $latestMessage['timestamp']);
+        } else {
+            app_whatsapp_clear_group_last_message((int) $message['session_id'], $groupId);
+        }
+
+        api_success('Message deleted');
+    } catch (Exception $e) {
+        api_error('Failed to delete message: ' . $e->getMessage());
+    }
+}
+
 function api_whatsapp_assign_group_category(): void {
     api_require_method('POST');
     $user = api_require_auth();

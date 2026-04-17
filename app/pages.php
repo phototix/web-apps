@@ -266,6 +266,38 @@ function app_page_settings(): void
             $settings = $decodedSettings;
         }
     }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
     $currencyOptions = [
         'USD' => 'USD - US Dollar',
         'SGD' => 'SGD - Singapore Dollar',
@@ -623,6 +655,14 @@ function app_page_cases(): void
     $user = app_current_user();
     $effectiveUser = $user ? app_get_effective_user($user) : $user;
     $effectiveUserId = $effectiveUser['id'] ?? 0;
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
 
     app_render_head('Cases');
 
@@ -1445,6 +1485,8 @@ function app_page_cases(): void
     
     <script>
     const casesDefaultCurrency = <?= json_encode($defaultCurrency, JSON_UNESCAPED_SLASHES) ?>;
+    const currentUserRole = <?= json_encode($user['role'] ?? '', JSON_UNESCAPED_SLASHES) ?>;
+    const canDeleteMessages = ['admin', 'superadmin'].includes(currentUserRole);
     // Global functions for category assignment
      function loadCategoriesForMessage(messageId, dropdownItem) {
          console.log('loadCategoriesForMessage called with messageId:', messageId, 'dropdownItem:', dropdownItem);
@@ -1610,6 +1652,9 @@ function app_page_cases(): void
         const numericValue = parseFloat(rawText.replace(/,/g, ''));
         if (!Number.isFinite(numericValue)) {
             return rawText;
+        }
+        if (numericValue === 0) {
+            return '';
         }
         const formattedNumber = numericValue.toLocaleString('en-US', {
             minimumFractionDigits: 2,
@@ -2486,6 +2531,71 @@ function app_page_cases(): void
                     });
             }
             
+            function deleteMessageItem(messageId) {
+                if (!messageId) {
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Delete message?',
+                    text: 'This will permanently delete the message from WhatsApp and your database.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Delete',
+                    cancelButtonText: 'Cancel',
+                    reverseButtons: true,
+                    showLoaderOnConfirm: true,
+                    preConfirm: () => {
+                        return fetch(`/api/whatsapp/messages/${messageId}`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => response.json().then(data => ({ response, data })))
+                        .then(({ response, data }) => {
+                            if (!response.ok || !data.success) {
+                                throw new Error(data.message || 'Delete failed');
+                            }
+                            return data;
+                        })
+                        .catch(error => {
+                            Swal.showValidationMessage(`Request failed: ${error.message || error}`);
+                        });
+                    },
+                    allowOutsideClick: () => !Swal.isLoading()
+                }).then((result) => {
+                    if (!result.isConfirmed) {
+                        return;
+                    }
+
+                    const messageEl = document.querySelector(`.message-item[data-message-id="${messageId}"], .file-item[data-message-id="${messageId}"]`);
+                    if (messageEl) {
+                        messageEl.remove();
+                    }
+
+                    const messagesList = document.getElementById('messages-files-list');
+                    const remainingItems = messagesList ? messagesList.querySelectorAll('.message-item, .file-item') : [];
+                    if (messagesList && remainingItems.length === 0) {
+                        messagesList.innerHTML = `
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-comments fa-2x mb-2"></i>
+                                <p>No messages or files found</p>
+                            </div>
+                        `;
+                    } else if (typeof applyMessagesFilesSearch === 'function') {
+                        applyMessagesFilesSearch();
+                    }
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Deleted',
+                        text: 'Message deleted successfully!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                });
+            }
+
             function renderMessagesAndFiles(messages) {
                 if (!messages || messages.length === 0) {
                     messagesList.innerHTML = `
@@ -2535,8 +2645,8 @@ function app_page_cases(): void
                      updateAllMessageDropdowns(window.currentCategories);
                  }
                  
-                 // Add event listeners for dropdown items
-                 document.querySelectorAll('.category-loading-item').forEach(item => {
+                  // Add event listeners for dropdown items
+                  document.querySelectorAll('.category-loading-item').forEach(item => {
                      item.addEventListener('click', function(e) {
                          e.preventDefault();
                          e.stopPropagation();
@@ -2554,16 +2664,26 @@ function app_page_cases(): void
                      });
                  });
                  
-                 document.querySelectorAll('.no-category-item').forEach(item => {
-                     item.addEventListener('click', function(e) {
-                         e.preventDefault();
-                         e.stopPropagation();
-                         
-                         const messageId = this.getAttribute('data-message-id');
-                         assignMessageToCategory(messageId, null);
-                     });
-                 });
-              }
+                  document.querySelectorAll('.no-category-item').forEach(item => {
+                      item.addEventListener('click', function(e) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          
+                          const messageId = this.getAttribute('data-message-id');
+                          assignMessageToCategory(messageId, null);
+                      });
+                  });
+
+                  document.querySelectorAll('.message-delete-item').forEach(item => {
+                      item.addEventListener('click', function(e) {
+                          e.preventDefault();
+                          e.stopPropagation();
+
+                          const messageId = this.getAttribute('data-message-id');
+                          deleteMessageItem(messageId);
+                      });
+                  });
+               }
 
              
              // Function to update all message dropdowns with categories
@@ -2673,6 +2793,10 @@ function app_page_cases(): void
                  html += '<i class="fas fa-ellipsis-v"></i>';
                  html += '</button>';
                  html += '<ul class="dropdown-menu dropdown-menu-end">';
+                 if (canDeleteMessages) {
+                     html += '<li><a class="dropdown-item text-danger message-delete-item" href="#" data-message-id="' + message.id + '"><i class="fas fa-trash-alt me-2"></i>Delete message</a></li>';
+                     html += '<li><hr class="dropdown-divider"></li>';
+                 }
                  html += '<li><h6 class="dropdown-header">Assign to Category</h6></li>';
                  html += '<li><a class="dropdown-item no-category-item" href="#" data-message-id="' + message.id + '">No Category</a></li>';
                  html += '<li><hr class="dropdown-divider"></li>';
@@ -2834,6 +2958,10 @@ function app_page_cases(): void
                 html += '<i class="fas fa-ellipsis-v"></i>';
                 html += '</button>';
                 html += '<ul class="dropdown-menu dropdown-menu-end">';
+                if (canDeleteMessages) {
+                    html += '<li><a class="dropdown-item text-danger message-delete-item" href="#" data-message-id="' + file.id + '"><i class="fas fa-trash-alt me-2"></i>Delete message</a></li>';
+                    html += '<li><hr class="dropdown-divider"></li>';
+                }
                 html += '<li><h6 class="dropdown-header">Assign to Category</h6></li>';
                 html += '<li><a class="dropdown-item no-category-item" href="#" data-message-id="' + file.id + '">No Category</a></li>';
                 html += '<li><hr class="dropdown-divider"></li>';

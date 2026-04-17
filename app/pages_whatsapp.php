@@ -2048,10 +2048,18 @@ function app_page_reports(): void {
         </div>
 
         <div class="card mb-4">
-            <div class="card-header bg-white">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Filters</h6>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        id="reports-filters-toggle"
+                        aria-expanded="true"
+                        aria-controls="reports-filters-body"
+                        aria-label="Toggle filters">
+                    <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                </button>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="reports-filters-body">
                 <form method="get" class="row g-3">
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Session</label>
@@ -2146,10 +2154,18 @@ function app_page_reports(): void {
         </div>
 
         <div class="card mb-4">
-            <div class="card-header bg-white">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Report Options</h6>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        id="reports-options-toggle"
+                        aria-expanded="true"
+                        aria-controls="reports-options-body"
+                        aria-label="Toggle report options">
+                    <i class="fas fa-chevron-up" aria-hidden="true"></i>
+                </button>
             </div>
-            <div class="card-body">
+            <div class="card-body" id="reports-options-body">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <div class="form-check form-switch">
@@ -2300,6 +2316,29 @@ function app_page_reports(): void {
             const generatePageSubmit = document.getElementById('submitGeneratePage');
             const promptField = document.getElementById('reportPagePrompt');
 
+            function initReportSectionToggle(buttonId, bodyId) {
+                const toggleButton = document.getElementById(buttonId);
+                const body = document.getElementById(bodyId);
+                if (!toggleButton || !body) {
+                    return;
+                }
+                const icon = toggleButton.querySelector('i');
+                const setExpanded = expanded => {
+                    body.classList.toggle('d-none', !expanded);
+                    toggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                    if (icon) {
+                        icon.classList.toggle('fa-chevron-up', expanded);
+                        icon.classList.toggle('fa-chevron-down', !expanded);
+                    }
+                };
+
+                setExpanded(false);
+                toggleButton.addEventListener('click', () => {
+                    const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+                    setExpanded(!isExpanded);
+                });
+            }
+
             function getTableData() {
                 if (!table) {
                     return { headers: [], rows: [] };
@@ -2411,6 +2450,9 @@ function app_page_reports(): void {
                     });
                 }
             }
+
+            initReportSectionToggle('reports-filters-toggle', 'reports-filters-body');
+            initReportSectionToggle('reports-options-toggle', 'reports-options-body');
 
             function buildCsvContent(data) {
                 const escapeValue = value => {

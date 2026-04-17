@@ -3132,6 +3132,501 @@ function app_page_cases(): void
     app_render_footer();
 }
 
+function app_pages_max_limit(): int
+{
+    return 10;
+}
+
+function app_pages_list_for_user(int $userId): array
+{
+    if ($userId <= 0) {
+        return [];
+    }
+
+    $stmt = app_db()->prepare('SELECT id, user_id, token, title, is_public, created_at, updated_at FROM user_pages WHERE user_id = ? ORDER BY created_at DESC');
+    $stmt->execute([$userId]);
+
+    return $stmt->fetchAll() ?: [];
+}
+
+function app_pages_count_for_user(int $userId): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    $stmt = app_db()->prepare('SELECT COUNT(*) FROM user_pages WHERE user_id = ?');
+    $stmt->execute([$userId]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function app_pages_find_by_token(string $token): ?array
+{
+    $stmt = app_db()->prepare('SELECT id, user_id, token, title, is_public, created_at, updated_at FROM user_pages WHERE token = ? LIMIT 1');
+    $stmt->execute([$token]);
+    $page = $stmt->fetch();
+
+    return $page === false ? null : $page;
+}
+
+function app_pages_find_for_user(int $userId, int $pageId): ?array
+{
+    if ($userId <= 0 || $pageId <= 0) {
+        return null;
+    }
+
+    $stmt = app_db()->prepare('SELECT id, user_id, token, title, is_public, created_at, updated_at FROM user_pages WHERE id = ? AND user_id = ? LIMIT 1');
+    $stmt->execute([$pageId, $userId]);
+    $page = $stmt->fetch();
+
+    return $page === false ? null : $page;
+}
+
+function app_pages_generate_token(): string
+{
+    $maxAttempts = 5;
+    for ($i = 0; $i < $maxAttempts; $i++) {
+        $raw = bin2hex(random_bytes(8));
+        $token = substr($raw, 0, 12);
+        if (app_pages_find_by_token($token) === null) {
+            return $token;
+        }
+    }
+
+    return bin2hex(random_bytes(10));
+}
+
+function app_pages_create(int $userId, string $token, ?string $title, int $isPublic): array
+{
+    $stmt = app_db()->prepare('INSERT INTO user_pages (user_id, token, title, is_public) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$userId, $token, $title, $isPublic]);
+
+    $pageId = (int) app_db()->lastInsertId();
+
+    return app_pages_find_for_user($userId, $pageId) ?? [];
+}
+
+function app_pages_update(int $userId, int $pageId, ?string $title, int $isPublic): ?array
+{
+    $stmt = app_db()->prepare('UPDATE user_pages SET title = ?, is_public = ? WHERE id = ? AND user_id = ?');
+    $stmt->execute([$title, $isPublic, $pageId, $userId]);
+
+    return app_pages_find_for_user($userId, $pageId);
+}
+
+function app_pages_delete(int $userId, int $pageId): bool
+{
+    $stmt = app_db()->prepare('DELETE FROM user_pages WHERE id = ? AND user_id = ?');
+    $stmt->execute([$pageId, $userId]);
+
+    return $stmt->rowCount() > 0;
+}
+
+function app_page_pages(): void
+{
+    $user = app_current_user();
+    $isAuthenticated = $user !== null;
+    $effectiveUser = $isAuthenticated ? app_get_effective_user($user) : null;
+    $effectiveUserId = (int) ($effectiveUser['id'] ?? 0);
+    $token = trim((string) ($_GET['token'] ?? ''));
+    $tokenIsValid = $token !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $token) === 1;
+    $pageRecord = $tokenIsValid ? app_pages_find_by_token($token) : null;
+    $tokenExists = $pageRecord !== null;
+    $isOwner = $tokenExists && $effectiveUserId > 0 && (int) $pageRecord['user_id'] === $effectiveUserId;
+    $isPublic = $tokenExists && (int) $pageRecord['is_public'] === 1;
+    $canViewPage = $tokenExists && ($isPublic || $isOwner);
+    $tokenForbidden = $tokenIsValid && $tokenExists && !$canViewPage;
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $resolvedBaseDir = realpath($baseDir) ?: $baseDir;
+    $pageDir = $canViewPage ? $baseDir . '/' . $token : null;
+    $resolvedPageDir = null;
+
+    if ($pageDir && is_dir($pageDir)) {
+        $candidate = realpath($pageDir);
+        if ($candidate !== false && str_starts_with($candidate, rtrim($resolvedBaseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            $resolvedPageDir = $candidate;
+        }
+    }
+
+    $htmlPath = $resolvedPageDir ? $resolvedPageDir . '/app.html' : null;
+    $cssPath = $resolvedPageDir ? $resolvedPageDir . '/app.css' : null;
+    $jsPath = $resolvedPageDir ? $resolvedPageDir . '/app.js' : null;
+
+    $htmlExists = $htmlPath ? is_file($htmlPath) : false;
+    $cssExists = $cssPath ? is_file($cssPath) : false;
+    $jsExists = $jsPath ? is_file($jsPath) : false;
+
+    $htmlContent = $htmlExists ? (string) file_get_contents($htmlPath) : '';
+    $cssContent = $cssExists ? (string) file_get_contents($cssPath) : '';
+    $jsContent = $jsExists ? (string) file_get_contents($jsPath) : '';
+
+    $iframeSrcdoc = null;
+    if ($htmlExists) {
+        $iframeSrcdoc = "<!DOCTYPE html>\n" .
+            "<html lang=\"en\">\n" .
+            "<head>\n" .
+            "  <meta charset=\"utf-8\">\n" .
+            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" .
+            "  <link rel=\"stylesheet\" href=\"/assets/pages/bootstrap.min.css\">\n" .
+            "  <link rel=\"stylesheet\" href=\"/assets/pages/fontawesome.min.css\">\n" .
+            "  <link rel=\"stylesheet\" href=\"/assets/pages/sweetalert2.min.css\">\n" .
+            "  <style>\n" . $cssContent . "\n  </style>\n" .
+            "</head>\n" .
+            "<body>\n" .
+            $htmlContent . "\n" .
+            "  <script src=\"/assets/pages/jquery.min.js\"></script>\n" .
+            "  <script src=\"/assets/pages/bootstrap.bundle.min.js\"></script>\n" .
+            "  <script src=\"/assets/pages/sweetalert2.all.min.js\"></script>\n" .
+            "  <script>\n" . $jsContent . "\n  </script>\n" .
+            "</body>\n" .
+            "</html>";
+    }
+
+    $pagesList = $isAuthenticated ? app_pages_list_for_user($effectiveUserId) : [];
+    $pageCount = $isAuthenticated ? count($pagesList) : 0;
+    $pageLimit = app_pages_max_limit();
+    $baseUrl = rtrim((string) app_env('APP_PUBLIC_URL', ''), '/');
+    if ($baseUrl === '') {
+        $baseUrl = rtrim((string) app_env('APP_BASE_URL', ''), '/');
+    }
+    if ($baseUrl === '') {
+        $baseUrl = rtrim((string) app_env('APP_URL', ''), '/');
+    }
+    $isLocalBase = $baseUrl !== '' && preg_match('/^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?/i', $baseUrl) === 1;
+    if ($baseUrl === '' || $isLocalBase) {
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '');
+    }
+
+    app_render_head('Pages');
+    if ($isAuthenticated) {
+        app_render_dashboard_start($user);
+        app_render_flash();
+    }
+    ?>
+    <?php if ($isAuthenticated && !($token !== '' && $tokenIsValid && $canViewPage)): ?>
+        <div class="row">
+            <div class="col-12">
+                <div class="card mb-4" id="pages-management" data-limit="<?= $pageLimit ?>" data-base-url="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">Pages Sandbox</h4>
+                            <p class="text-muted mb-0">Manage and preview user-generated HTML, CSS, and JS.</p>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small"><?= $pageCount ?> / <?= $pageLimit ?> pages used</div>
+                            <button class="btn btn-primary btn-sm mt-2" type="button" id="createPageBtn">
+                                <i class="fas fa-plus me-1"></i> Create Page
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form class="row g-2 align-items-end" method="get" action="/pages">
+                            <div class="col-md-6">
+                                <label class="form-label">Token</label>
+                                <input type="text" name="token" class="form-control" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>" placeholder="Enter token" />
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-outline-primary">Load Page</button>
+                            </div>
+                        </form>
+                        <?php if ($token !== '' && !$tokenIsValid): ?>
+                            <div class="alert alert-danger mt-3 mb-0">Token contains invalid characters. Use letters, numbers, hyphen, and underscore only.</div>
+                        <?php elseif ($tokenIsValid && $tokenExists === false): ?>
+                            <div class="alert alert-warning mt-3 mb-0">Token not found in database. Create it first to manage access.</div>
+                        <?php elseif ($tokenForbidden): ?>
+                            <div class="alert alert-danger mt-3 mb-0">You do not have access to this page.</div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Your Pages</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <?php if (empty($pagesList)): ?>
+                            <div class="p-4 text-muted">No pages yet. Click “Create Page” to add one.</div>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Token</th>
+                                            <th>Public</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($pagesList as $page): ?>
+                                            <tr data-page-id="<?= (int) $page['id'] ?>">
+                                                <td><?= htmlspecialchars((string) ($page['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?: 'Untitled' ?></td>
+                                                <td>
+                                                    <div class="d-flex flex-column">
+                                                        <span class="fw-semibold"><?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?></span>
+                                                        <a class="small" href="/pages?token=<?= urlencode($page['token']) ?>">/pages?token=<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?></a>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input page-public-toggle" type="checkbox" role="switch" id="page-public-<?= (int) $page['id'] ?>" data-page-id="<?= (int) $page['id'] ?>" <?= ((int) $page['is_public'] === 1) ? 'checked' : '' ?>>
+                                                        <label class="form-check-label" for="page-public-<?= (int) $page['id'] ?>"><?= ((int) $page['is_public'] === 1) ? 'Public' : 'Private' ?></label>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex gap-2">
+                                                        <button class="btn btn-sm btn-outline-secondary page-edit-btn" type="button"
+                                                            data-page-id="<?= (int) $page['id'] ?>"
+                                                            data-page-token="<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-page-title="<?= htmlspecialchars((string) ($page['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-page-public="<?= (int) $page['is_public'] ?>">
+                                                            Edit
+                                                        </button>
+                                                        <?php if ((int) $page['is_public'] === 1): ?>
+                                                            <button class="btn btn-sm btn-outline-primary page-share-btn" type="button"
+                                                                data-page-token="<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-share-url="<?= htmlspecialchars($baseUrl . '/pages/' . $page['token'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                onclick="appPagesShare(this)">
+                                                                Share
+                                                            </button>
+                                                        <?php endif; ?>
+                                                        <button class="btn btn-sm btn-outline-danger page-delete-btn" type="button" data-page-id="<?= (int) $page['id'] ?>" data-page-token="<?= htmlspecialchars($page['token'], ENT_QUOTES, 'UTF-8') ?>">
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if (!$isAuthenticated && $token !== ''): ?>
+        <div class="container py-4">
+            <div class="alert alert-warning mb-0">Page not available.</div>
+        </div>
+    <?php endif; ?>
+
+    <?php
+    $wrapGuestContainer = !$isAuthenticated && $token !== '' && $tokenIsValid && $canViewPage;
+    if ($wrapGuestContainer):
+        ?>
+        <div class="container pb-4">
+        <?php
+    endif;
+    ?>
+    <?php if ($isAuthenticated && $token !== '' && $tokenIsValid && $canViewPage && !($htmlExists && $cssExists && $jsExists)): ?>
+        <?php if ($isAuthenticated): ?>
+            <div class="row">
+                <div class="col-12">
+                    <div class="mb-3">
+                        <a class="btn btn-outline-secondary btn-sm" href="/pages">Back to Pages</a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+        <div class="row">
+            <div class="col-12">
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">File Checks</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <video class="rounded" autoplay muted loop playsinline style="width: 40%; max-width: 520px; height: auto;">
+                                <source src="/assets/videos/building.mp4" type="video/mp4">
+                            </video>
+                            <div class="text-muted small mt-2">Your page is still being built. Check back soon.</div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas <?= $htmlExists ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger' ?>"></i>
+                                    <span>app.html</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas <?= $cssExists ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger' ?>"></i>
+                                    <span>app.css</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas <?= $jsExists ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger' ?>"></i>
+                                    <span>app.js</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($token !== '' && $tokenIsValid && $canViewPage): ?>
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($iframeSrcdoc): ?>
+                            <iframe
+                                title="Page Preview"
+                                srcdoc="<?= htmlspecialchars($iframeSrcdoc, ENT_QUOTES, 'UTF-8') ?>"
+                                style="width: 100%; height: 70vh; border: 1px solid #e3e6f0; border-radius: 6px; background: #fff;"
+                            ></iframe>
+                        <?php else: ?>
+                            <div class="alert alert-info mb-0">Add <code>app.html</code> to the token folder to render the preview.</div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($wrapGuestContainer): ?>
+        </div>
+    <?php endif; ?>
+    <?php if ($isAuthenticated): ?>
+        <div class="modal fade" id="pageModal" tabindex="-1" aria-labelledby="pageModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="pageModalLabel">Create Page</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="pageForm">
+                        <div class="modal-body">
+                            <input type="hidden" name="id" id="page-id" />
+                            <input type="hidden" name="token" id="page-token" />
+                            <div class="mb-3">
+                                <label class="form-label">Title</label>
+                                <input type="text" class="form-control" name="title" id="page-title" placeholder="Page title" required>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="page-public" name="is_public">
+                                <label class="form-check-label" for="page-public">Public (anyone with token can view)</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="page-save-btn">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php
+    if ($isAuthenticated) {
+        app_render_dashboard_end();
+    }
+    app_render_scripts();
+    if ($isAuthenticated) {
+        ?>
+        <script src="/js/pages-management.js"></script>
+        <script>
+            function appPagesShare(button) {
+                if (!button) {
+                    return;
+                }
+                var shareUrl = button.getAttribute('data-share-url') || '';
+                if (!shareUrl) {
+                    return;
+                }
+
+                var showSuccess = function (message) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Success',
+                            text: message,
+                            timer: 1200,
+                            showConfirmButton: false
+                        });
+                        return;
+                    }
+                    alert(message);
+                };
+
+                var showError = function (message) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: message
+                        });
+                        return;
+                    }
+                    alert(message);
+                };
+
+                var fallback = function () {
+                    var temp = document.createElement('textarea');
+                    temp.value = shareUrl;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    var copied = false;
+                    try {
+                        copied = document.execCommand('copy');
+                    } catch (error) {
+                        copied = false;
+                    }
+                    document.body.removeChild(temp);
+
+                    if (copied) {
+                        showSuccess('Link copied');
+                        return;
+                    }
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Copy link',
+                            input: 'text',
+                            inputValue: shareUrl,
+                            confirmButtonText: 'Close'
+                        });
+                    } else {
+                        prompt('Copy link:', shareUrl);
+                    }
+                };
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(shareUrl)
+                        .then(function () {
+                            showSuccess('Link copied');
+                        })
+                        .catch(function () {
+                            fallback();
+                        });
+                    return;
+                }
+
+                fallback();
+            }
+        </script>
+        <?php
+    }
+    ?>
+</body>
+</html>
+    <?php
+}
+
 function app_page_logout(): void
 {
     app_logout_user();

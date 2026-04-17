@@ -1417,6 +1417,195 @@ function api_whatsapp_assign_group_category(): void {
         api_error('Failed to assign group category: ' . $e->getMessage());
     }
 }
+
+function api_pages_list(): void
+{
+    api_require_method('GET');
+    $user = api_require_auth();
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $pages = app_pages_list_for_user($effectiveUserId);
+
+    api_success('Pages retrieved', [
+        'pages' => $pages,
+        'count' => count($pages),
+        'max' => app_pages_max_limit(),
+    ]);
+}
+
+function api_pages_create(): void
+{
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $input = api_get_json_input();
+
+    $token = trim((string) ($input['token'] ?? ''));
+    $title = trim((string) ($input['title'] ?? ''));
+    $isPublic = !empty($input['is_public']) ? 1 : 0;
+
+    $errors = [];
+    if ($token === '') {
+        $token = app_pages_generate_token();
+    }
+
+    if (preg_match('/^[A-Za-z0-9_-]+$/', $token) !== 1) {
+        $errors['token'] = 'Token must contain letters, numbers, hyphen, or underscore only.';
+    }
+    if ($title === '') {
+        $errors['title'] = 'Title is required.';
+    }
+
+    if (!empty($errors)) {
+        api_validation_error($errors);
+    }
+
+    if (app_pages_count_for_user($effectiveUserId) >= app_pages_max_limit()) {
+        api_error('Page limit reached. You can create up to 10 pages.', [], 403);
+    }
+
+    if (app_pages_find_by_token($token) !== null) {
+        $token = app_pages_generate_token();
+        if (app_pages_find_by_token($token) !== null) {
+            api_validation_error(['token' => 'Token already exists. Please try again.']);
+        }
+    }
+
+    $page = app_pages_create($effectiveUserId, $token, $title, $isPublic);
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $pageDir = $baseDir . '/' . $token;
+    if (!is_dir($pageDir)) {
+        if (!mkdir($pageDir, 0775, true) && !is_dir($pageDir)) {
+            api_error('Page folder could not be created. Check permissions.', [], 500);
+        }
+    }
+
+    api_success('Page created', ['page' => $page]);
+}
+
+function api_reports_create_page_from_csv(): void
+{
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $input = api_get_json_input();
+
+    $csv = (string) ($input['csv'] ?? '');
+    $prompt = trim((string) ($input['prompt'] ?? ''));
+    $title = trim((string) ($input['title'] ?? ''));
+
+    if (trim($csv) === '') {
+        api_validation_error(['csv' => 'CSV content is required.']);
+    }
+
+    if (strlen($csv) > 5 * 1024 * 1024) {
+        api_validation_error(['csv' => 'CSV content exceeds the 5MB limit.']);
+    }
+
+    if ($prompt === '') {
+        $prompt = 'Generate an interactive website with this data.';
+    }
+
+    if ($title === '') {
+        $title = 'Reports Data';
+    }
+
+    if (app_pages_count_for_user($effectiveUserId) >= app_pages_max_limit()) {
+        api_error('Page limit reached. You can create up to 10 pages.', [], 403);
+    }
+
+    $token = app_pages_generate_token();
+    if (app_pages_find_by_token($token) !== null) {
+        $token = app_pages_generate_token();
+        if (app_pages_find_by_token($token) !== null) {
+            api_error('Failed to generate a unique page token.', [], 500);
+        }
+    }
+
+    $page = app_pages_create($effectiveUserId, $token, $title, 0);
+
+    $baseDir = dirname(__DIR__) . '/pages';
+    $pageDir = $baseDir . '/' . $token;
+    if (!is_dir($pageDir)) {
+        if (!mkdir($pageDir, 0775, true) && !is_dir($pageDir)) {
+            api_error('Page folder could not be created. Check permissions.', [], 500);
+        }
+    }
+
+    $csvPath = $pageDir . '/reports.csv';
+    $promptPath = $pageDir . '/prompt.txt';
+
+    if (file_put_contents($csvPath, $csv) === false) {
+        api_error('Failed to save CSV data.', [], 500);
+    }
+
+    if (file_put_contents($promptPath, $prompt) === false) {
+        api_error('Failed to save prompt data.', [], 500);
+    }
+
+    api_success('Page created', ['page' => $page, 'token' => $token]);
+}
+
+function api_pages_update(): void
+{
+    api_require_method('PUT');
+    $user = api_require_auth();
+
+    $pageId = (int) api_get_query_param('id');
+    if ($pageId <= 0) {
+        api_validation_error(['id' => 'Page ID is required']);
+    }
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $page = app_pages_find_for_user($effectiveUserId, $pageId);
+    if ($page === null) {
+        api_forbidden('Page not found or access denied');
+    }
+
+    $input = api_get_json_input();
+    $titleProvided = array_key_exists('title', $input);
+    $publicProvided = array_key_exists('is_public', $input);
+
+    $title = $titleProvided ? trim((string) $input['title']) : (string) ($page['title'] ?? '');
+    if ($title === '') {
+        api_validation_error(['title' => 'Title is required.']);
+    }
+    $isPublic = $publicProvided ? (!empty($input['is_public']) ? 1 : 0) : (int) $page['is_public'];
+
+    $updated = app_pages_update($effectiveUserId, $pageId, $title, $isPublic);
+    if ($updated === null) {
+        api_error('Failed to update page');
+    }
+
+    api_success('Page updated', ['page' => $updated]);
+}
+
+function api_pages_delete(): void
+{
+    api_require_method('DELETE');
+    $user = api_require_auth();
+
+    $pageId = (int) api_get_query_param('id');
+    if ($pageId <= 0) {
+        api_validation_error(['id' => 'Page ID is required']);
+    }
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $page = app_pages_find_for_user($effectiveUserId, $pageId);
+    if ($page === null) {
+        api_forbidden('Page not found or access denied');
+    }
+
+    if (!app_pages_delete($effectiveUserId, $pageId)) {
+        api_error('Failed to delete page');
+    }
+
+    api_success('Page deleted');
+}
+
 function api_require_whatsapp_access(): array {
     $user = api_require_auth();
     

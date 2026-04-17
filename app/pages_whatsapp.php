@@ -1734,10 +1734,27 @@ function app_page_reports(): void {
     app_render_dashboard_start($user);
     app_render_flash();
 
+    $categoryIds = [];
+    $categoryInput = $_GET['category_ids'] ?? [];
+    if (is_array($categoryInput)) {
+        foreach ($categoryInput as $categoryId) {
+            $categoryId = (int) $categoryId;
+            if ($categoryId > 0) {
+                $categoryIds[] = $categoryId;
+            }
+        }
+    } else {
+        $categoryId = (int) $categoryInput;
+        if ($categoryId > 0) {
+            $categoryIds[] = $categoryId;
+        }
+    }
+    $categoryIds = array_values(array_unique($categoryIds));
+
     $filters = [
         'session_id' => (int) ($_GET['session_id'] ?? 0),
         'group_id' => (int) ($_GET['group_id'] ?? 0),
-        'category_id' => (int) ($_GET['category_id'] ?? 0),
+        'category_ids' => $categoryIds,
         'message_type' => trim((string) ($_GET['message_type'] ?? '')),
         'sender' => trim((string) ($_GET['sender'] ?? '')),
         'date_from' => trim((string) ($_GET['date_from'] ?? '')),
@@ -1783,9 +1800,14 @@ function app_page_reports(): void {
             $params['group_id'] = $filters['group_id'];
         }
 
-        if ($filters['category_id'] > 0) {
-            $query .= " AND gm.category_id = :category_id";
-            $params['category_id'] = $filters['category_id'];
+        if (!empty($filters['category_ids'])) {
+            $placeholders = [];
+            foreach ($filters['category_ids'] as $index => $categoryId) {
+                $placeholder = ':category_id_' . $index;
+                $placeholders[] = $placeholder;
+                $params['category_id_' . $index] = $categoryId;
+            }
+            $query .= " AND gm.category_id IN (" . implode(', ', $placeholders) . ")";
         }
 
         if ($filters['message_type'] !== '') {
@@ -1853,6 +1875,9 @@ function app_page_reports(): void {
                 <button type="button" class="btn btn-outline-danger" id="export-pdf">
                     <i class="fas fa-file-pdf me-1"></i> PDF
                 </button>
+                <button type="button" class="btn btn-outline-primary" id="generate-page">
+                    <i class="fas fa-magic me-1"></i> Generate Page with data
+                </button>
             </div>
         </div>
 
@@ -1899,15 +1924,27 @@ function app_page_reports(): void {
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Category</label>
-                        <select class="form-select" name="category_id">
-                            <option value="0">All Categories</option>
-                            <?php foreach ($categories as $category): ?>
-                                <?php $categoryId = (int) ($category['id'] ?? 0); ?>
-                                <option value="<?= $categoryId ?>" <?= $filters['category_id'] === $categoryId ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($category['name'] ?? 'Category', ENT_QUOTES, 'UTF-8') ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="dropdown w-100" data-category-filter>
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="categoryFilterBtn">
+                                <?= empty($filters['category_ids']) ? 'All Categories' : 'Selected Categories' ?>
+                            </button>
+                            <div class="dropdown-menu p-2 w-100" style="max-height: 260px; overflow-y: auto;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="category-all" <?= empty($filters['category_ids']) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="category-all">All Categories</label>
+                                </div>
+                                <hr class="my-2">
+                                <?php foreach ($categories as $category): ?>
+                                    <?php $categoryId = (int) ($category['id'] ?? 0); ?>
+                                    <div class="form-check">
+                                        <input class="form-check-input category-option" type="checkbox" name="category_ids[]" value="<?= $categoryId ?>" id="category-<?= $categoryId ?>" <?= in_array($categoryId, $filters['category_ids'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="category-<?= $categoryId ?>">
+                                            <?= htmlspecialchars($category['name'] ?? 'Category', ENT_QUOTES, 'UTF-8') ?>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-lg-3 col-md-6">
                         <label class="form-label">Message Type</label>
@@ -2004,6 +2041,28 @@ function app_page_reports(): void {
         </div>
     </div>
 
+    <div class="modal fade" id="generatePageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Page with data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="reportPagePrompt" class="form-label">AI Prompt</label>
+                    <textarea class="form-control" id="reportPagePrompt" rows="4">Generate an interactive website with this data.</textarea>
+                    <div class="form-text">Your CSV data will be saved to the page folder for AI generation.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitGeneratePage">
+                        <i class="fas fa-magic me-1"></i> Generate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
@@ -2013,6 +2072,10 @@ function app_page_reports(): void {
             const csvButton = document.getElementById('export-csv');
             const xlsxButton = document.getElementById('export-xlsx');
             const pdfButton = document.getElementById('export-pdf');
+            const generatePageButton = document.getElementById('generate-page');
+            const generatePageModalEl = document.getElementById('generatePageModal');
+            const generatePageSubmit = document.getElementById('submitGeneratePage');
+            const promptField = document.getElementById('reportPagePrompt');
 
             function getTableData() {
                 if (!table) {
@@ -2039,7 +2102,15 @@ function app_page_reports(): void {
             function exportCsv() {
                 const data = getTableData();
                 if (!data.rows.length) {
-                    alert('No data to export.');
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'No data to export',
+                            text: 'There are no rows to export.'
+                        });
+                    } else {
+                        alert('No data to export.');
+                    }
                     return;
                 }
                 const escapeValue = value => {
@@ -2056,10 +2127,32 @@ function app_page_reports(): void {
                 downloadFile(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'reports.csv');
             }
 
+            function buildCsvContent(data) {
+                const escapeValue = value => {
+                    if (value.includes('"') || value.includes(',') || value.includes('\n')) {
+                        return '"' + value.replace(/"/g, '""') + '"';
+                    }
+                    return value;
+                };
+                const lines = [data.headers.map(escapeValue).join(',')];
+                data.rows.forEach(row => {
+                    lines.push(row.map(escapeValue).join(','));
+                });
+                return lines.join('\n');
+            }
+
             function exportXlsx() {
                 const data = getTableData();
                 if (!data.rows.length || !window.XLSX) {
-                    alert('No data to export.');
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'No data to export',
+                            text: 'There are no rows to export.'
+                        });
+                    } else {
+                        alert('No data to export.');
+                    }
                     return;
                 }
                 const worksheet = window.XLSX.utils.aoa_to_sheet([data.headers, ...data.rows]);
@@ -2071,7 +2164,15 @@ function app_page_reports(): void {
             function exportPdf() {
                 const data = getTableData();
                 if (!data.rows.length || !window.jspdf || !window.jspdf.jsPDF) {
-                    alert('No data to export.');
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'No data to export',
+                            text: 'There are no rows to export.'
+                        });
+                    } else {
+                        alert('No data to export.');
+                    }
                     return;
                 }
                 const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -2096,6 +2197,197 @@ function app_page_reports(): void {
             }
             if (pdfButton) {
                 pdfButton.addEventListener('click', exportPdf);
+            }
+
+            const categoryFilter = document.querySelector('[data-category-filter]');
+            if (categoryFilter) {
+                const allToggle = categoryFilter.querySelector('#category-all');
+                const options = Array.from(categoryFilter.querySelectorAll('.category-option'));
+                const button = categoryFilter.querySelector('#categoryFilterBtn');
+
+                const updateCategoryLabel = () => {
+                    const selected = options.filter(option => option.checked);
+                    if (!button) {
+                        return;
+                    }
+                    if (selected.length === 0) {
+                        button.textContent = 'All Categories';
+                        if (allToggle) {
+                            allToggle.checked = true;
+                        }
+                        return;
+                    }
+                    const label = selected.length === 1
+                        ? selected[0].nextElementSibling?.textContent?.trim() || 'Selected Categories'
+                        : `${selected.length} Categories Selected`;
+                    button.textContent = label;
+                    if (allToggle) {
+                        allToggle.checked = false;
+                    }
+                };
+
+                if (allToggle) {
+                    allToggle.addEventListener('change', () => {
+                        if (allToggle.checked) {
+                            options.forEach(option => {
+                                option.checked = false;
+                            });
+                        }
+                        updateCategoryLabel();
+                    });
+                }
+
+                options.forEach(option => {
+                    option.addEventListener('change', () => {
+                        if (option.checked && allToggle) {
+                            allToggle.checked = false;
+                        }
+                        updateCategoryLabel();
+                    });
+                });
+
+                updateCategoryLabel();
+            }
+
+            function formatTitleTimestamp() {
+                const now = new Date();
+                const pad = value => String(value).padStart(2, '0');
+                return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            }
+
+            function getDefaultPrompt() {
+                if (promptField && promptField.value.trim() !== '') {
+                    return promptField.value.trim();
+                }
+                return 'Generate an interactive website with this data.';
+            }
+
+            async function generatePageWithData(promptOverride = '') {
+                const data = getTableData();
+                if (!data.rows.length) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'No data to export',
+                            text: 'There are no rows to generate a page.'
+                        });
+                    } else {
+                        alert('No data to export.');
+                    }
+                    return;
+                }
+
+                const prompt = promptOverride.trim() !== '' ? promptOverride.trim() : getDefaultPrompt();
+                const csvContent = buildCsvContent(data);
+
+                if (window.Swal) {
+                    Swal.fire({
+                        title: 'Creating page...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+                }
+
+                try {
+                    const response = await fetch('/api/reports/pages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            prompt,
+                            csv: csvContent,
+                            title: `Reports Data - ${formatTitleTimestamp()}`
+                        })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        const message = result && result.message ? result.message : 'Failed to create page.';
+                        if (window.Swal) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Could not create page',
+                                text: message
+                            });
+                        } else {
+                            alert(message);
+                        }
+                        return;
+                    }
+
+                    if (generatePageModalEl && window.bootstrap) {
+                        const modalInstance = window.bootstrap.Modal.getInstance(generatePageModalEl);
+                        if (modalInstance) {
+                            modalInstance.hide();
+                        }
+                    }
+
+                    const token = result.data && result.data.token ? result.data.token : '';
+                    const pageUrl = token ? `/pages?token=${encodeURIComponent(token)}` : '/pages';
+
+                    if (token) {
+                        window.open(pageUrl, '_blank');
+                    }
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Page created',
+                            html: token ? `Open your page: <a href="${pageUrl}" target="_blank" rel="noopener">${pageUrl}</a>` : 'Your page has been created.',
+                            confirmButtonText: 'Done'
+                        });
+                    }
+                } catch (error) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Request failed',
+                            text: 'Unable to create page right now.'
+                        });
+                    } else {
+                        alert('Unable to create page right now.');
+                    }
+                }
+            }
+
+            if (generatePageButton) {
+                generatePageButton.addEventListener('click', () => {
+                    if (window.Swal) {
+                        Swal.fire({
+                            title: 'Generate Page with data',
+                            input: 'textarea',
+                            inputValue: getDefaultPrompt(),
+                            inputAttributes: {
+                                'aria-label': 'AI prompt'
+                            },
+                            showCancelButton: true,
+                            confirmButtonText: 'Generate'
+                        }).then(result => {
+                            if (result.isConfirmed) {
+                                const promptValue = typeof result.value === 'string' ? result.value : '';
+                                generatePageWithData(promptValue);
+                            }
+                        });
+                        return;
+                    }
+
+                    if (generatePageModalEl && window.bootstrap) {
+                        const modal = new window.bootstrap.Modal(generatePageModalEl);
+                        modal.show();
+                        return;
+                    }
+
+                    const fallbackPrompt = window.prompt('Enter AI prompt for this page', getDefaultPrompt());
+                    if (fallbackPrompt !== null) {
+                        generatePageWithData(fallbackPrompt);
+                    }
+                });
+            }
+
+            if (generatePageSubmit) {
+                generatePageSubmit.addEventListener('click', () => {
+                    generatePageWithData(getDefaultPrompt());
+                });
             }
         })();
     </script>

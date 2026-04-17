@@ -41,6 +41,12 @@ function app_render_dashboard_sidebar(): void
                             <span>Groups Chats</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/pages') !== false ? 'active' : '' ?>" href="/pages">
+                            <i class="fas fa-file-code"></i>
+                            <span>Pages</span>
+                        </a>
+                    </li>
                     <?php if (!$isChildUser && $effectiveRole && $effectiveRole !== 'users'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/whatsapp-connect') !== false ? 'active' : '' ?>" href="/whatsapp-connect">

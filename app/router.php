@@ -26,6 +26,15 @@ function app_dispatch_request(): void
         return;
     }
 
+    if ($method === 'GET' && str_starts_with($path, '/pages/')) {
+        $token = trim(substr($path, strlen('/pages/')));
+        if ($token !== '') {
+            $_GET['token'] = $token;
+        }
+        app_page_pages();
+        return;
+    }
+
     $routes = [
         'GET' => [
             '/' => 'app_page_home',
@@ -35,6 +44,7 @@ function app_dispatch_request(): void
             '/logout' => 'app_page_logout',
             '/whatsapp-connect' => 'app_page_whatsapp_connect',
             '/groups' => 'app_page_groups',
+            '/pages' => 'app_page_pages',
             '/cases' => 'app_page_cases',
             '/reports' => 'app_page_reports',
             '/settings' => 'app_page_settings',
@@ -87,11 +97,14 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/categories/{id}' => 'api_whatsapp_get_category',
             '/api/whatsapp/categories/{id}/messages' => 'api_whatsapp_get_category_messages',
             '/api/whatsapp/categories/{id}/groups' => 'api_whatsapp_get_category_groups',
+            '/api/pages' => 'api_pages_list',
         ],
         'POST' => [
             '/api/auth/login' => 'api_auth_login',
             '/api/auth/register' => 'api_auth_register',
             '/api/auth/logout' => 'api_auth_logout',
+            '/api/pages' => 'api_pages_create',
+            '/api/reports/pages' => 'api_reports_create_page_from_csv',
             '/api/whatsapp/sessions' => 'api_whatsapp_create_session',
             '/api/whatsapp/sessions/{id}/sync' => 'api_whatsapp_sync_groups',
             '/api/whatsapp/groups/{id}/sync-messages' => 'api_whatsapp_sync_group_messages',
@@ -107,11 +120,13 @@ function app_dispatch_api_request(string $method, string $path): void
         ],
         'PUT' => [
             '/api/whatsapp/categories/{id}' => 'api_whatsapp_update_category',
+            '/api/pages/{id}' => 'api_pages_update',
         ],
         'DELETE' => [
             '/api/whatsapp/sessions/{id}' => 'api_whatsapp_delete_session',
             '/api/whatsapp/messages/{id}' => 'api_whatsapp_delete_message',
             '/api/whatsapp/categories/{id}' => 'api_whatsapp_delete_category',
+            '/api/pages/{id}' => 'api_pages_delete',
         ],
     ];
 

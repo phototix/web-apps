@@ -71,6 +71,14 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <?php endif; ?>
+                    <?php if (!$isChildUser && $effectiveRole && in_array($effectiveRole, ['admin', 'superadmin'], true)): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/audits') !== false ? 'active' : '' ?>" href="/audits">
+                            <i class="fas fa-clipboard-list"></i>
+                            <span>Master Audit</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 </ul>
             
             <div class="mt-auto p-3">

@@ -20,6 +20,10 @@ function app_page_whatsapp_connect(): void {
         if ($action === 'create_session') {
             try {
                 $result = app_whatsapp_create_session($user['id']);
+                app_log_audit('create_session', [
+                    'session_id' => $result['session_id'] ?? null,
+                    'session_name' => $result['session_name'] ?? null,
+                ], $user);
                 app_flash('success', 'WhatsApp session created. Scan the QR code to connect.');
             } catch (Exception $e) {
                 app_flash('error', $e->getMessage());
@@ -28,7 +32,12 @@ function app_page_whatsapp_connect(): void {
             $sessionId = (int) ($_POST['session_id'] ?? 0);
             if ($sessionId) {
                 try {
+                    $session = app_whatsapp_get_session($sessionId);
                     app_whatsapp_delete_session($sessionId);
+                    app_log_audit('delete_session', [
+                        'session_id' => $sessionId,
+                        'session_name' => $session['session_name'] ?? null,
+                    ], $user);
                     app_flash('success', 'Session deleted');
                 } catch (Exception $e) {
                     app_flash('error', $e->getMessage());
@@ -66,10 +75,6 @@ function app_page_whatsapp_connect(): void {
                                              <button type="button" class="btn btn-primary btn-lg" id="createSessionBtn">
                                                  <i class="fab fa-whatsapp me-2"></i> Create New WhatsApp Session
                                              </button>
-                                         </div>
-                                         <div class="mt-2 text-muted small text-center">
-                                             <i class="fas fa-info-circle me-1"></i>
-                                             A unique session name will be automatically generated
                                          </div>
                                      </div>
                                  </div>
@@ -154,21 +159,35 @@ function app_page_whatsapp_connect(): void {
                                                                      data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
                                                                  <i class="fas fa-sync-alt me-1"></i> Refresh QR
                                                              </button>
+                                                             <?php if (!empty($session['can_show_screenshot'])): ?>
+                                                                 <div class="mt-2">
+                                                                     <button class="btn btn-sm btn-outline-secondary screenshot-btn"
+                                                                             data-session-id="<?= $session['id'] ?>">
+                                                                         <i class="fas fa-camera me-1"></i> Show Screenshot
+                                                                     </button>
+                                                                 </div>
+                                                             <?php endif; ?>
                                                         </div>
                                                     <?php endif; ?>
                                                     
-                                                     <div class="d-flex justify-content-between mt-3">
-                                                         <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
-                                                                 data-session-id="<?= $session['id'] ?>"
-                                                                 data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
-                                                             <i class="fas fa-trash me-1"></i> Delete
-                                                         </button>
-                                                        <?php if ($session['status'] === 'active'): ?>
-                                                            <a href="/groups?session=<?= urlencode($session['session_name']) ?>" class="btn btn-sm btn-success">
-                                                                <i class="fas fa-users me-1"></i> View Groups
-                                                            </a>
-                                                        <?php endif; ?>
-                                                    </div>
+                                                      <div class="d-flex justify-content-between mt-3">
+                                                          <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
+                                                                  data-session-id="<?= $session['id'] ?>"
+                                                                  data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
+                                                              <i class="fas fa-trash me-1"></i> Delete
+                                                          </button>
+                                                          <?php if (!empty($session['can_view_screenshot'])): ?>
+                                                              <button type="button" class="btn btn-sm btn-outline-primary screenshot-btn"
+                                                                      data-session-id="<?= $session['id'] ?>">
+                                                                  <i class="fas fa-camera me-1"></i> View Screenshot
+                                                              </button>
+                                                          <?php endif; ?>
+                                                          <?php if ($session['status'] === 'active'): ?>
+                                                              <a href="/groups?session=<?= urlencode($session['session_name']) ?>" class="btn btn-sm btn-success">
+                                                                  <i class="fas fa-users me-1"></i> View Groups
+                                                              </a>
+                                                          <?php endif; ?>
+                                                      </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -177,6 +196,30 @@ function app_page_whatsapp_connect(): void {
                             <?php endif; ?>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screenshot Preview Modal -->
+    <div class="modal fade" id="whatsappScreenshotModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">WhatsApp Screenshot</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div id="whatsappScreenshotLoading" class="py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted mt-2">Loading screenshot...</div>
+                    </div>
+                    <img id="whatsappScreenshotImage" src="" class="img-fluid d-none" alt="WhatsApp Screenshot">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -209,9 +252,56 @@ function app_page_whatsapp_connect(): void {
                     qrContainer.innerHTML = '<div class="alert alert-warning">QR code not available. Session may be connecting or already connected.</div>';
                 }
             })
+        .catch(error => {
+            console.error('Error loading QR code:', error);
+            qrContainer.innerHTML = '<div class="alert alert-danger">Failed to load QR code. Please try again.</div>';
+        });
+    }
+
+    function loadScreenshot(sessionId) {
+        const modalElement = document.getElementById('whatsappScreenshotModal');
+        const imageElement = document.getElementById('whatsappScreenshotImage');
+        const loadingElement = document.getElementById('whatsappScreenshotLoading');
+
+        if (!modalElement || !imageElement || !loadingElement) {
+            return;
+        }
+
+        imageElement.classList.add('d-none');
+        loadingElement.classList.remove('d-none');
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+
+        fetch(`/api/whatsapp/sessions/${sessionId}/screenshot`, {
+            headers: {
+                'Accept': 'image/jpeg'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                if (window.currentScreenshotUrl) {
+                    URL.revokeObjectURL(window.currentScreenshotUrl);
+                }
+                const imageUrl = URL.createObjectURL(blob);
+                window.currentScreenshotUrl = imageUrl;
+                imageElement.src = imageUrl;
+                imageElement.classList.remove('d-none');
+                loadingElement.classList.add('d-none');
+            })
             .catch(error => {
-                console.error('Error loading QR code:', error);
-                qrContainer.innerHTML = '<div class="alert alert-danger">Failed to load QR code. Please try again.</div>';
+                console.error('Error loading screenshot:', error);
+                loadingElement.classList.add('d-none');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Screenshot failed',
+                    text: 'Unable to load the screenshot right now.'
+                });
             });
     }
     
@@ -222,6 +312,16 @@ function app_page_whatsapp_connect(): void {
             
             button.addEventListener('click', function() {
                 loadQRCode(this);
+            });
+        });
+
+        document.querySelectorAll('.screenshot-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const sessionId = this.dataset.sessionId;
+                if (!sessionId) {
+                    return;
+                }
+                loadScreenshot(sessionId);
             });
         });
         
@@ -260,6 +360,10 @@ function app_page_whatsapp_connect(): void {
                              redirect: 'manual' // Don't automatically follow redirects
                          })
                          .then(response => {
+                             if (response.type === 'opaqueredirect' || response.status === 0) {
+                                 window.location.href = '/whatsapp-connect';
+                                 return new Promise(() => {});
+                             }
                              // Check if it's a redirect (302, 303, 307, 308)
                              if (response.status >= 300 && response.status < 400) {
                                  // Get the redirect URL from the Location header
@@ -291,9 +395,9 @@ function app_page_whatsapp_connect(): void {
          });
          
          // Handle session creation with SweetAlert
-         const createSessionBtn = document.getElementById('createSessionBtn');
-         if (createSessionBtn) {
-             createSessionBtn.addEventListener('click', function() {
+          const createSessionBtn = document.getElementById('createSessionBtn');
+          if (createSessionBtn) {
+              createSessionBtn.addEventListener('click', function() {
              const button = this;
              const originalText = button.innerHTML;
              
@@ -319,6 +423,10 @@ function app_page_whatsapp_connect(): void {
                          redirect: 'manual' // Don't automatically follow redirects
                      })
                      .then(response => {
+                         if (response.type === 'opaqueredirect' || response.status === 0) {
+                             window.location.href = '/whatsapp-connect';
+                             return new Promise(() => {});
+                         }
                          // Check if it's a redirect (302, 303, 307, 308)
                          if (response.status >= 300 && response.status < 400) {
                              // Get the redirect URL from the Location header
@@ -349,10 +457,29 @@ function app_page_whatsapp_connect(): void {
                      button.innerHTML = originalText;
                  }
              });
-             });
-         }
-     });
-     </script>
+              });
+          }
+
+        const screenshotModal = document.getElementById('whatsappScreenshotModal');
+        if (screenshotModal) {
+            screenshotModal.addEventListener('hidden.bs.modal', function() {
+                const imageElement = document.getElementById('whatsappScreenshotImage');
+                if (imageElement) {
+                    imageElement.src = '';
+                    imageElement.classList.add('d-none');
+                }
+                const loadingElement = document.getElementById('whatsappScreenshotLoading');
+                if (loadingElement) {
+                    loadingElement.classList.add('d-none');
+                }
+                if (window.currentScreenshotUrl) {
+                    URL.revokeObjectURL(window.currentScreenshotUrl);
+                    window.currentScreenshotUrl = null;
+                }
+            });
+        }
+      });
+      </script>
     <?php
     
     app_render_dashboard_end();
@@ -1764,6 +1891,45 @@ function app_page_reports(): void {
     $sessions = app_whatsapp_get_user_sessions($effectiveUserId);
     $groups = app_whatsapp_get_user_groups($effectiveUserId);
     $categories = app_whatsapp_get_user_categories($effectiveUserId, null, true);
+    $categoriesById = [];
+    foreach ($categories as $category) {
+        $categoryId = (int) ($category['id'] ?? 0);
+        if ($categoryId > 0) {
+            $categoriesById[$categoryId] = $category;
+        }
+    }
+    $categoryDisplayLabels = [];
+    foreach ($categories as $category) {
+        $categoryId = (int) ($category['id'] ?? 0);
+        if ($categoryId <= 0) {
+            continue;
+        }
+        $path = [];
+        $current = $category;
+        $visited = [];
+        while ($current) {
+            $currentId = (int) ($current['id'] ?? 0);
+            if ($currentId <= 0 || isset($visited[$currentId])) {
+                break;
+            }
+            $visited[$currentId] = true;
+            $pathName = trim((string) ($current['name'] ?? ''));
+            array_unshift($path, $pathName !== '' ? $pathName : 'Category');
+            $parentId = (int) ($current['parent_id'] ?? 0);
+            if ($parentId <= 0 || !isset($categoriesById[$parentId])) {
+                break;
+            }
+            $current = $categoriesById[$parentId];
+        }
+        $categoryDisplayLabels[$categoryId] = implode(' -> ', $path);
+    }
+    usort($categories, function ($left, $right) use ($categoryDisplayLabels) {
+        $leftId = (int) ($left['id'] ?? 0);
+        $rightId = (int) ($right['id'] ?? 0);
+        $leftLabel = $categoryDisplayLabels[$leftId] ?? '';
+        $rightLabel = $categoryDisplayLabels[$rightId] ?? '';
+        return strcasecmp($leftLabel, $rightLabel);
+    });
 
     $groupsBySession = [];
     foreach ($groups as $group) {
@@ -1778,7 +1944,7 @@ function app_page_reports(): void {
         $db = app_db();
         $query = "
             SELECT gm.id, gm.session_id, gm.group_id, gm.message_id, gm.sender_number, gm.sender_name,
-                   gm.message_type, gm.content, gm.data, gm.media_caption, gm.caption, gm.amount, gm.timestamp,
+                   gm.message_type, gm.content, gm.data, gm.media_url, gm.media_caption, gm.caption, gm.amount, gm.timestamp,
                    wg.name as group_name, ws.session_name,
                    c.name as category_name, c.color as category_color
             FROM group_messages gm
@@ -1939,7 +2105,7 @@ function app_page_reports(): void {
                                     <div class="form-check">
                                         <input class="form-check-input category-option" type="checkbox" name="category_ids[]" value="<?= $categoryId ?>" id="category-<?= $categoryId ?>" <?= in_array($categoryId, $filters['category_ids'], true) ? 'checked' : '' ?>>
                                         <label class="form-check-label" for="category-<?= $categoryId ?>">
-                                            <?= htmlspecialchars($category['name'] ?? 'Category', ENT_QUOTES, 'UTF-8') ?>
+                                            <?= htmlspecialchars($categoryDisplayLabels[$categoryId] ?? ($category['name'] ?? 'Category'), ENT_QUOTES, 'UTF-8') ?>
                                         </label>
                                     </div>
                                 <?php endforeach; ?>
@@ -1979,6 +2145,40 @@ function app_page_reports(): void {
             </div>
         </div>
 
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">Report Options</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="report-option-image">
+                            <label class="form-check-label" for="report-option-image">Enable Image Column</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="report-option-amount" checked>
+                            <label class="form-check-label" for="report-option-amount">Show Amount Column</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="report-option-message" checked>
+                            <label class="form-check-label" for="report-option-message">Show Caption Column</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="report-option-sender" checked>
+                            <label class="form-check-label" for="report-option-sender">Show Sender Column</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Results</h6>
@@ -1996,9 +2196,11 @@ function app_page_reports(): void {
                             <thead>
                                 <tr>
                                     <th>Case</th>
-                                    <th>Sender</th>
+                                    <th data-column="sender">Sender</th>
                                     <th>Data</th>
-                                    <th>Amount</th>
+                                    <th data-column="message">Caption</th>
+                                    <th class="d-none" data-column="image">Image</th>
+                                    <th data-column="amount">Amount</th>
                                     <th>Category</th>
                                     <th>Timestamp</th>
                                 </tr>
@@ -2007,6 +2209,8 @@ function app_page_reports(): void {
                                 <?php foreach ($messages as $message): ?>
                                     <?php
                                     $messageData = (string) ($message['data'] ?? '');
+                                    $messageCaption = trim((string) ($message['media_caption'] ?? ''));
+                                    $messageValue = $messageCaption !== '' ? $messageCaption : '- N/A -';
 
                                     $timestamp = (int) ($message['timestamp'] ?? 0);
                                     $displayTime = $timestamp > 0 ? date('M d, Y H:i', (int) floor($timestamp / 1000)) : 'Unknown';
@@ -2017,14 +2221,33 @@ function app_page_reports(): void {
                                     } else {
                                         $amountValue = '- N/A -';
                                     }
+                                    $imageUrl = '';
+                                    if ($message['message_type'] === 'image' || $message['message_type'] === 'sticker') {
+                                        $imageUrl = $message['media_url'] ?: (!empty($message['content']) ? 'data:image/jpeg;base64,' . $message['content'] : '');
+                                    }
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars($message['group_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
-                                        <td><?= htmlspecialchars($senderLabel ?: 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td data-column="sender"><?= htmlspecialchars($senderLabel ?: 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
                                         <td class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>">
                                             <?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>
                                         </td>
-                                        <td><?= htmlspecialchars($amountValue, ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td data-column="message" class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>
+                                        </td>
+                                        <td class="d-none" data-column="image" data-export-value="<?= htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?php if (!empty($imageUrl)): ?>
+                                                <img src="<?= htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                                     class="img-thumbnail"
+                                                     style="max-width: 64px; max-height: 64px; cursor: pointer;"
+                                                     data-image-url="<?= htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                                     alt="Image"
+                                                     onclick="enlargeImage(this)">
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td data-column="amount"><?= htmlspecialchars($amountValue, ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
                                             <span class="badge" style="background-color: <?= htmlspecialchars($message['category_color'] ?? '#6c757d', ENT_QUOTES, 'UTF-8') ?>;">
                                                 <?= htmlspecialchars($message['category_name'] ?? 'Uncategorized', ENT_QUOTES, 'UTF-8') ?>
@@ -2081,9 +2304,23 @@ function app_page_reports(): void {
                 if (!table) {
                     return { headers: [], rows: [] };
                 }
-                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                const headerCells = Array.from(table.querySelectorAll('thead th'));
+                const visibleIndexes = headerCells
+                    .map((cell, index) => (cell.classList.contains('d-none') ? null : index))
+                    .filter(index => index !== null);
+                const headers = visibleIndexes.map(index => headerCells[index].textContent.trim());
                 const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
-                    return Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim());
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return visibleIndexes.map(index => {
+                        const cell = cells[index];
+                        if (!cell) {
+                            return '';
+                        }
+                        if (cell.hasAttribute('data-export-value')) {
+                            return cell.getAttribute('data-export-value') || '';
+                        }
+                        return cell.textContent.trim();
+                    });
                 });
                 return { headers, rows };
             }
@@ -2125,6 +2362,54 @@ function app_page_reports(): void {
                 });
                 const csvContent = lines.join('\n');
                 downloadFile(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'reports.csv');
+            }
+
+            function setColumnVisibility(columnKey, isVisible) {
+                if (!table) {
+                    return;
+                }
+                table.querySelectorAll('[data-column="' + columnKey + '"]').forEach(cell => {
+                    if (isVisible) {
+                        cell.classList.remove('d-none');
+                    } else {
+                        cell.classList.add('d-none');
+                    }
+                });
+            }
+
+            function initReportOptions() {
+                const imageToggle = document.getElementById('report-option-image');
+                const amountToggle = document.getElementById('report-option-amount');
+                const messageToggle = document.getElementById('report-option-message');
+                const senderToggle = document.getElementById('report-option-sender');
+
+                if (imageToggle) {
+                    setColumnVisibility('image', imageToggle.checked);
+                    imageToggle.addEventListener('change', () => {
+                        setColumnVisibility('image', imageToggle.checked);
+                    });
+                }
+
+                if (amountToggle) {
+                    setColumnVisibility('amount', amountToggle.checked);
+                    amountToggle.addEventListener('change', () => {
+                        setColumnVisibility('amount', amountToggle.checked);
+                    });
+                }
+
+                if (messageToggle) {
+                    setColumnVisibility('message', messageToggle.checked);
+                    messageToggle.addEventListener('change', () => {
+                        setColumnVisibility('message', messageToggle.checked);
+                    });
+                }
+
+                if (senderToggle) {
+                    setColumnVisibility('sender', senderToggle.checked);
+                    senderToggle.addEventListener('change', () => {
+                        setColumnVisibility('sender', senderToggle.checked);
+                    });
+                }
             }
 
             function buildCsvContent(data) {
@@ -2389,6 +2674,8 @@ function app_page_reports(): void {
                     generatePageWithData(getDefaultPrompt());
                 });
             }
+
+            initReportOptions();
         })();
     </script>
     <?php
@@ -2423,11 +2710,61 @@ function app_page_admin_users(): void {
                 $inviteCode = app_generate_invite_code($user['id'], $tier);
                 app_flash('success', "Invite code generated: <code>{$inviteCode}</code>");
                 break;
+
+            case 'update_expiry':
+                if ($user['role'] === 'superadmin') {
+                    $expiryDate = trim((string) ($_POST['expiry_date'] ?? ''));
+                    $expiryDate = $expiryDate === '' ? null : $expiryDate;
+                    if (app_update_user_expiry_date($targetUserId, $expiryDate)) {
+                        app_flash('success', 'Admin expiry date updated');
+                    } else {
+                        app_flash('error', 'Unable to update expiry date');
+                    }
+                }
+                break;
                 
             case 'delete_user':
                 if ($user['role'] === 'superadmin') {
                     app_delete_user($targetUserId);
                     app_flash('success', 'User deleted');
+                }
+                break;
+
+            case 'update_password':
+                if ($user['role'] === 'superadmin') {
+                    $password = (string) ($_POST['password'] ?? '');
+                    $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+                    if ($password === '' || $confirmPassword === '') {
+                        app_flash('error', 'Password is required');
+                        break;
+                    }
+
+                    if ($password !== $confirmPassword) {
+                        app_flash('error', 'Passwords do not match');
+                        break;
+                    }
+
+                    if (strlen($password) < 8) {
+                        app_flash('error', 'Password must be at least 8 characters');
+                        break;
+                    }
+
+                    if (app_update_user_password($targetUserId, $password)) {
+                        app_flash('success', 'Password updated');
+                    } else {
+                        app_flash('error', 'Unable to update password');
+                    }
+                }
+                break;
+
+            case 'update_agent_contacts':
+                if ($user['role'] === 'superadmin') {
+                    $agentContacts = trim((string) ($_POST['agent_contacts'] ?? ''));
+                    if (app_update_user_agent_contacts($targetUserId, $agentContacts)) {
+                        app_flash('success', 'Agent contacts updated');
+                    } else {
+                        app_flash('error', 'Unable to update agent contacts');
+                    }
                 }
                 break;
         }
@@ -2506,12 +2843,10 @@ function app_page_admin_users(): void {
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Tier</th>
+                                <th>User</th>
+                                <th>Tier / Expiry</th>
                                 <th>Sessions</th>
-                                <th>Joined</th>
+                                <th>Activity</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -2519,19 +2854,24 @@ function app_page_admin_users(): void {
                             <?php foreach ($users as $u): ?>
                                 <tr>
                                     <td>#<?= $u['id'] ?></td>
-                                    <td><?= htmlspecialchars($u['name']) ?></td>
-                                    <td><?= htmlspecialchars($u['email']) ?></td>
                                     <td>
-                                        <span class="badge bg-<?= $u['role'] === 'superadmin' ? 'danger' : ($u['role'] === 'admin' ? 'warning' : 'secondary') ?>">
-                                            <?= ucfirst($u['role']) ?>
-                                        </span>
+                                        <div class="fw-semibold"><?= htmlspecialchars($u['name']) ?></div>
+                                        <div class="text-muted small"><?= htmlspecialchars($u['email']) ?></div>
+                                        <?php if ($u['role'] === 'users'): ?>
+                                            <div class="text-muted small">Parent: <b><?= htmlspecialchars($u['parent_name'] ?? 'parent') ?></b></div>
+                                            <?php if (!empty($u['parent_tier'])): ?>
+                                                <span class="badge bg-secondary mt-1"><?= ucfirst($u['parent_tier']) ?></span>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                        <div class="mt-1">
+                                            <span class="badge bg-<?= $u['role'] === 'superadmin' ? 'danger' : ($u['role'] === 'admin' ? 'warning' : 'secondary') ?>">
+                                                <?= ucfirst($u['role']) ?>
+                                            </span>
+                                        </div>
                                     </td>
                                     <td>
                                         <?php if ($u['role'] === 'users'): ?>
-                                            <span class="text-muted">Inherited from <?= htmlspecialchars($u['parent_name'] ?? 'parent') ?></span>
-                                            <?php if (!empty($u['parent_tier'])): ?>
-                                                <span class="badge bg-secondary ms-1"><?= ucfirst($u['parent_tier']) ?></span>
-                                            <?php endif; ?>
+                                            <span class="text-muted">Inherited</span>
                                         <?php else: ?>
                                             <form method="POST" class="d-inline">
                                                 <input type="hidden" name="action" value="update_tier">
@@ -2544,6 +2884,32 @@ function app_page_admin_users(): void {
                                                     <option value="enterprise" <?= $u['tier'] === 'enterprise' ? 'selected' : '' ?>>Enterprise</option>
                                                 </select>
                                             </form>
+                                        <?php endif; ?>
+
+                                        <?php if ($u['role'] === 'admin'): ?>
+                                            <div class="mt-2">
+                                                <?php if ($user['role'] === 'superadmin'): ?>
+                                                    <form method="POST" class="d-flex align-items-center gap-2">
+                                                        <input type="hidden" name="action" value="update_expiry">
+                                                        <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                                                        <input type="date" name="expiry_date" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($u['expiry_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary" title="Save">
+                                                            <i class="fas fa-save"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <?php if (!empty($u['expiry_date'])): ?>
+                                                        <span class="<?= app_is_expiry_date_expired($u['expiry_date']) ? 'text-danger' : 'text-muted' ?>">
+                                                            <?= date('M d, Y', strtotime($u['expiry_date'])) ?>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">Not set</span>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                                <?php if (app_is_expiry_date_expired($u['expiry_date'] ?? null)): ?>
+                                                    <span class="badge bg-danger ms-1">Expired</span>
+                                                <?php endif; ?>
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -2567,7 +2933,13 @@ function app_page_admin_users(): void {
                                             </span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+                                    <td>
+                                        <div>Joined: <?= date('M d, Y', strtotime($u['created_at'])) ?></div>
+                                        <div class="text-muted small">
+                                            Last Login:
+                                            <?= !empty($u['last_login_at']) ? date('M d, Y H:i', strtotime($u['last_login_at'])) : '-' ?>
+                                        </div>
+                                    </td>
                                     <td>
                                          <?php if ($user['role'] === 'superadmin' && $u['role'] !== 'superadmin'): ?>
                                              <?php $magicToken = app_create_magic_login_token((int) $u['id']); ?>
@@ -2576,6 +2948,25 @@ function app_page_admin_users(): void {
                                                 title="Login as user">
                                                  <i class="fas fa-lock"></i>
                                              </a>
+                                             <?php if ($u['role'] === 'admin'): ?>
+                                                 <button type="button" class="btn btn-sm btn-outline-secondary me-1 change-password-btn"
+                                                         data-bs-toggle="modal"
+                                                         data-bs-target="#changePasswordModal"
+                                                         data-user-id="<?= $u['id'] ?>"
+                                                         data-user-name="<?= htmlspecialchars($u['name']) ?>"
+                                                         title="Change password">
+                                                     <i class="fas fa-key"></i>
+                                                 </button>
+                                                 <button type="button" class="btn btn-sm btn-outline-secondary me-1 agent-contacts-btn"
+                                                         data-bs-toggle="modal"
+                                                         data-bs-target="#agentContactsModal"
+                                                         data-user-id="<?= $u['id'] ?>"
+                                                         data-user-name="<?= htmlspecialchars($u['name']) ?>"
+                                                         data-agent-contacts="<?= htmlspecialchars((string) ($u['agent_contacts'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                         title="Agent contacts">
+                                                     <i class="fas fa-address-card"></i>
+                                                 </button>
+                                             <?php endif; ?>
                                              <button type="button" class="btn btn-sm btn-danger delete-user-btn" 
                                                      data-user-id="<?= $u['id'] ?>"
                                                      data-user-name="<?= htmlspecialchars($u['name']) ?>">
@@ -2591,9 +2982,142 @@ function app_page_admin_users(): void {
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Change Password</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="update_password">
+                        <input type="hidden" name="user_id" id="changePasswordUserId" value="">
+                        <p class="mb-3">Update password for <span class="fw-semibold" id="changePasswordUserName"></span>.</p>
+                        <div class="mb-3">
+                            <label class="form-label" for="changePasswordInput">New Password</label>
+                            <input type="password" class="form-control" id="changePasswordInput" name="password" minlength="8" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="changePasswordConfirm">Confirm Password</label>
+                            <input type="password" class="form-control" id="changePasswordConfirm" name="confirm_password" minlength="8" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="agentContactsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Agent Contacts</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="update_agent_contacts">
+                        <input type="hidden" name="user_id" id="agentContactsUserId" value="">
+                        <p class="mb-3">Contacts for <span class="fw-semibold" id="agentContactsUserName"></span>.</p>
+                        <div class="mb-3">
+                            <label class="form-label" for="agentContactsInput">Agent Contacts</label>
+                            <textarea class="form-control" id="agentContactsInput" name="agent_contacts" rows="4" placeholder="Add phone, email, or notes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const changePasswordModal = document.getElementById('changePasswordModal');
+        const changePasswordUserId = document.getElementById('changePasswordUserId');
+        const changePasswordUserName = document.getElementById('changePasswordUserName');
+        const changePasswordInput = document.getElementById('changePasswordInput');
+        const changePasswordConfirm = document.getElementById('changePasswordConfirm');
+        const agentContactsModal = document.getElementById('agentContactsModal');
+        const agentContactsUserId = document.getElementById('agentContactsUserId');
+        const agentContactsUserName = document.getElementById('agentContactsUserName');
+        const agentContactsInput = document.getElementById('agentContactsInput');
+
+        document.querySelectorAll('.change-password-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.dataset.userId;
+                const userName = this.dataset.userName;
+                if (changePasswordUserId) {
+                    changePasswordUserId.value = userId;
+                }
+                if (changePasswordUserName) {
+                    changePasswordUserName.textContent = userName || 'user';
+                }
+                if (changePasswordInput) {
+                    changePasswordInput.value = '';
+                }
+                if (changePasswordConfirm) {
+                    changePasswordConfirm.value = '';
+                }
+            });
+        });
+
+        if (changePasswordModal) {
+            changePasswordModal.addEventListener('hidden.bs.modal', () => {
+                if (changePasswordUserId) {
+                    changePasswordUserId.value = '';
+                }
+                if (changePasswordUserName) {
+                    changePasswordUserName.textContent = '';
+                }
+                if (changePasswordInput) {
+                    changePasswordInput.value = '';
+                }
+                if (changePasswordConfirm) {
+                    changePasswordConfirm.value = '';
+                }
+            });
+        }
+
+        document.querySelectorAll('.agent-contacts-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.dataset.userId;
+                const userName = this.dataset.userName;
+                const agentContacts = this.dataset.agentContacts || '';
+                if (agentContactsUserId) {
+                    agentContactsUserId.value = userId;
+                }
+                if (agentContactsUserName) {
+                    agentContactsUserName.textContent = userName || 'user';
+                }
+                if (agentContactsInput) {
+                    agentContactsInput.value = agentContacts;
+                }
+            });
+        });
+
+        if (agentContactsModal) {
+            agentContactsModal.addEventListener('hidden.bs.modal', () => {
+                if (agentContactsUserId) {
+                    agentContactsUserId.value = '';
+                }
+                if (agentContactsUserName) {
+                    agentContactsUserName.textContent = '';
+                }
+                if (agentContactsInput) {
+                    agentContactsInput.value = '';
+                }
+            });
+        }
+
         // Handle user deletion with SweetAlert
         document.querySelectorAll('.delete-user-btn').forEach(button => {
             button.addEventListener('click', function() {
@@ -2708,6 +3232,9 @@ function app_get_all_users(): array {
                u.role,
                u.tier,
                u.parent_id,
+               u.expiry_date,
+               u.last_login_at,
+               u.agent_contacts,
                u.created_at,
                p.name AS parent_name,
                p.role AS parent_role,
@@ -2718,6 +3245,34 @@ function app_get_all_users(): array {
     ");
     $stmt->execute();
     return $stmt->fetchAll();
+}
+
+function app_update_user_expiry_date(int $userId, ?string $expiryDate): bool {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("UPDATE users SET expiry_date = :expiry_date WHERE id = :id AND role = 'admin'");
+    return $stmt->execute([
+        'expiry_date' => $expiryDate,
+        'id' => $userId
+    ]);
+}
+
+function app_update_user_password(int $userId, string $password): bool {
+    $pdo = app_db();
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare("UPDATE users SET password_hash = :password_hash WHERE id = :id AND role != 'superadmin'");
+    return $stmt->execute([
+        'password_hash' => $passwordHash,
+        'id' => $userId
+    ]);
+}
+
+function app_update_user_agent_contacts(int $userId, string $agentContacts): bool {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("UPDATE users SET agent_contacts = :agent_contacts WHERE id = :id AND role = 'admin'");
+    return $stmt->execute([
+        'agent_contacts' => $agentContacts,
+        'id' => $userId
+    ]);
 }
 
 function app_update_user_tier(int $userId, string $tier): bool {
@@ -2775,7 +3330,13 @@ function app_get_pending_invites(): array {
 function app_delete_user(int $userId): bool {
     $pdo = app_db();
     $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
-    return $stmt->execute(['id' => $userId]);
+    $success = $stmt->execute(['id' => $userId]);
+    if ($success) {
+        app_log_audit('delete_user', [
+            'target_user_id' => $userId,
+        ]);
+    }
+    return $success;
 }
 
 function app_page_admin_my_users(): void {
@@ -2811,6 +3372,36 @@ function app_page_admin_my_users(): void {
                         app_delete_user($targetUserId);
                         app_flash('success', 'User deleted');
                     }
+                }
+                break;
+
+            case 'update_my_user_password':
+                $targetUserId = (int) ($_POST['user_id'] ?? 0);
+                $password = (string) ($_POST['password'] ?? '');
+                $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+                if ($targetUserId && $password !== '' && $confirmPassword !== '') {
+                    if ($password !== $confirmPassword) {
+                        app_flash('error', 'Passwords do not match');
+                        break;
+                    }
+
+                    if (strlen($password) < 8) {
+                        app_flash('error', 'Password must be at least 8 characters');
+                        break;
+                    }
+
+                    $pdo = app_db();
+                    $stmt = $pdo->prepare("SELECT id FROM users WHERE id = :id AND parent_id = :parent_id AND role = 'users'");
+                    $stmt->execute(['id' => $targetUserId, 'parent_id' => $user['id']]);
+                    $targetUser = $stmt->fetch();
+
+                    if ($targetUser && app_update_user_password($targetUserId, $password)) {
+                        app_flash('success', 'Password updated');
+                    } else {
+                        app_flash('error', 'Unable to update password');
+                    }
+                } else {
+                    app_flash('error', 'Password is required');
                 }
                 break;
         }
@@ -2900,8 +3491,9 @@ function app_page_admin_my_users(): void {
                                 <tr>
                                     <th>Name</th>
                                     <th>Email</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2911,6 +3503,17 @@ function app_page_admin_my_users(): void {
                                         <td><?= htmlspecialchars($u['email']) ?></td>
                                         <td><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td>
+                                            <?= !empty($u['last_login_at']) ? date('M d, Y H:i', strtotime($u['last_login_at'])) : '-' ?>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1 my-user-password-btn"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#myUserPasswordModal"
+                                                    data-user-id="<?= $u['id'] ?>"
+                                                    data-user-name="<?= htmlspecialchars($u['name']) ?>"
+                                                    title="Change password">
+                                                <i class="fas fa-key"></i>
+                                            </button>
                                             <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
                                                 <input type="hidden" name="action" value="delete_user">
                                                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
@@ -2933,6 +3536,80 @@ function app_page_admin_my_users(): void {
             </div>
         </div>
     </div>
+    <div class="modal fade" id="myUserPasswordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Change Password</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="update_my_user_password">
+                        <input type="hidden" name="user_id" id="myUserPasswordUserId" value="">
+                        <p class="mb-3">Update password for <span class="fw-semibold" id="myUserPasswordUserName"></span>.</p>
+                        <div class="mb-3">
+                            <label class="form-label" for="myUserPasswordInput">New Password</label>
+                            <input type="password" class="form-control" id="myUserPasswordInput" name="password" minlength="8" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="myUserPasswordConfirm">Confirm Password</label>
+                            <input type="password" class="form-control" id="myUserPasswordConfirm" name="confirm_password" minlength="8" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const myUserPasswordModal = document.getElementById('myUserPasswordModal');
+        const myUserPasswordUserId = document.getElementById('myUserPasswordUserId');
+        const myUserPasswordUserName = document.getElementById('myUserPasswordUserName');
+        const myUserPasswordInput = document.getElementById('myUserPasswordInput');
+        const myUserPasswordConfirm = document.getElementById('myUserPasswordConfirm');
+
+        document.querySelectorAll('.my-user-password-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.dataset.userId;
+                const userName = this.dataset.userName;
+                if (myUserPasswordUserId) {
+                    myUserPasswordUserId.value = userId;
+                }
+                if (myUserPasswordUserName) {
+                    myUserPasswordUserName.textContent = userName || 'user';
+                }
+                if (myUserPasswordInput) {
+                    myUserPasswordInput.value = '';
+                }
+                if (myUserPasswordConfirm) {
+                    myUserPasswordConfirm.value = '';
+                }
+            });
+        });
+
+        if (myUserPasswordModal) {
+            myUserPasswordModal.addEventListener('hidden.bs.modal', () => {
+                if (myUserPasswordUserId) {
+                    myUserPasswordUserId.value = '';
+                }
+                if (myUserPasswordUserName) {
+                    myUserPasswordUserName.textContent = '';
+                }
+                if (myUserPasswordInput) {
+                    myUserPasswordInput.value = '';
+                }
+                if (myUserPasswordConfirm) {
+                    myUserPasswordConfirm.value = '';
+                }
+            });
+        }
+    });
+    </script>
     <?php
     
     app_render_footer();

@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleField = document.getElementById('page-title');
     const publicField = document.getElementById('page-public');
 
-    if (!modalEl || !form || !createBtn || !tokenField || !titleField || !publicField || !modalLabel) {
+    if (!modalEl || !form || !tokenField || !titleField || !publicField || !modalLabel) {
         return;
     }
 
@@ -85,7 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(message);
     };
 
-    createBtn.addEventListener('click', openCreateModal);
+    if (createBtn) {
+        createBtn.addEventListener('click', openCreateModal);
+    }
 
     document.querySelectorAll('.page-edit-btn').forEach((button) => {
         button.addEventListener('click', () => openEditModal(button));
@@ -115,6 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.page-delete-btn').forEach((button) => {
         button.addEventListener('click', () => {
+            console.log('[pages-management] delete clicked', {
+                pageId: button.dataset.pageId || null,
+                token: button.dataset.pageToken || null,
+                swal: !!window.Swal
+            });
             const pageId = button.dataset.pageId;
             const token = button.dataset.pageToken || 'this page';
 
@@ -122,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const confirmDelete = () => apiRequest(`/api/pages/${pageId}`, 'DELETE')
+            const confirmDelete = () => apiRequest(`/api/pages/${pageId}/delete`, 'POST')
                 .then(({ success, data }) => {
                     if (!success) {
                         showError((data && data.message) ? data.message : 'Failed to delete page');

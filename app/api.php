@@ -185,6 +185,7 @@ function api_auth_login(): void
     
     $email = trim($input['email'] ?? '');
     $password = $input['password'] ?? '';
+    $otp = isset($input['otp']) ? (string) $input['otp'] : null;
     
     if (empty($email) || empty($password)) {
         api_validation_error([
@@ -194,7 +195,7 @@ function api_auth_login(): void
     }
     
     try {
-        if (app_attempt_login($email, $password)) {
+        if (app_attempt_login($email, $password, $otp)) {
             $user = app_current_user();
             
             // Remove sensitive data
@@ -292,6 +293,9 @@ function api_auth_profile(): void
     api_require_method('GET');
     
     $user = api_require_auth();
+    if (($user['role'] ?? '') === 'users') {
+        api_error('Access denied.', [], 403);
+    }
     
     // Remove sensitive data
     unset($user['password_hash']);
@@ -345,6 +349,10 @@ function api_whatsapp_create_session(): void {
     try {
         $effectiveUserId = api_get_effective_user_id($user);
         $result = app_whatsapp_create_session($effectiveUserId);
+        app_log_audit('create_session', [
+            'session_id' => $result['session_id'] ?? null,
+            'session_name' => $result['session_name'] ?? null,
+        ], $user);
         api_success('Session created', $result, 201);
     } catch (Exception $e) {
         api_error($e->getMessage());
@@ -437,6 +445,50 @@ function api_whatsapp_get_session_status(): void {
     }
 }
 
+function api_whatsapp_get_screenshot(): void {
+    api_require_method('GET');
+    $user = api_require_auth();
+
+    $sessionParam = api_get_query_param('id');
+    if (!$sessionParam) {
+        api_validation_error(['id' => 'Session ID or name is required']);
+    }
+
+    $session = null;
+    if (is_numeric($sessionParam)) {
+        $sessionId = (int) $sessionParam;
+        if ($sessionId > 0) {
+            $session = app_whatsapp_get_session($sessionId);
+        }
+    }
+
+    if (!$session) {
+        $session = app_whatsapp_get_session_by_name($sessionParam);
+    }
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$session || $session['user_id'] !== $effectiveUserId) {
+        api_forbidden('Session not found or access denied');
+    }
+
+    try {
+        $endpoint = '/api/screenshot?session=' . urlencode((string) $session['session_name']);
+        $screenshot = app_whatsapp_api_get_binary_with_headers(
+            $endpoint,
+            ['Accept: image/jpeg'],
+            app_whatsapp_api_key()
+        );
+
+        app_clear_output_buffers();
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . strlen($screenshot));
+        echo $screenshot;
+        exit;
+    } catch (Exception $e) {
+        api_error($e->getMessage());
+    }
+}
+
 function api_whatsapp_delete_session(): void {
     api_require_method('DELETE');
     $user = api_require_auth();
@@ -468,6 +520,10 @@ function api_whatsapp_delete_session(): void {
     try {
         $success = app_whatsapp_delete_session($session['id']);
         if ($success) {
+            app_log_audit('delete_session', [
+                'session_id' => $session['id'] ?? null,
+                'session_name' => $session['session_name'] ?? null,
+            ], $user);
             api_success('Session deleted');
         } else {
             api_error('Failed to delete session');
@@ -616,6 +672,12 @@ function api_whatsapp_set_group_status(): void {
         }
 
         if ($success) {
+            $auditAction = $status === 'archived' ? 'archive_group' : 'unarchive_group';
+            app_log_audit($auditAction, [
+                'group_id' => $groupId,
+                'session_id' => $sessionId,
+                'status' => $status,
+            ], $user);
             api_success('Group status updated', [
                 'status' => $status,
                 'group_id' => $groupId,
@@ -1411,6 +1473,12 @@ function api_whatsapp_delete_message(): void {
             api_error('Failed to delete message');
         }
 
+        app_log_audit('delete_message', [
+            'message_id' => $messageId,
+            'group_id' => $groupId,
+            'session_id' => $message['session_id'] ?? null,
+        ], $user);
+
         $latestMessage = app_whatsapp_get_latest_group_message((int) $message['session_id'], $groupId);
         if ($latestMessage) {
             $previewContent = $latestMessage['content'] ?? $latestMessage['media_caption'] ?? $latestMessage['caption'] ?? '';
@@ -1709,12 +1777,20 @@ function api_pages_update(): void
         api_error('Failed to update page');
     }
 
+    app_log_audit('edit_page', [
+        'page_id' => $pageId,
+        'title' => $updated['title'] ?? null,
+    ], $user);
+
     api_success('Page updated', ['page' => $updated]);
 }
 
 function api_pages_delete(): void
 {
-    api_require_method('DELETE');
+    $method = $_SERVER['REQUEST_METHOD'] ?? '';
+    if ($method !== 'DELETE' && $method !== 'POST') {
+        api_method_not_allowed();
+    }
     $user = api_require_auth();
 
     $pageId = (int) api_get_query_param('id');
@@ -1747,6 +1823,12 @@ function api_pages_delete(): void
     if (!app_pages_delete($effectiveUserId, $pageId)) {
         api_error('Failed to delete page');
     }
+
+    app_log_audit('delete_page', [
+        'page_id' => $pageId,
+        'token' => $token,
+        'title' => $page['title'] ?? null,
+    ], $user);
 
     api_success('Page deleted');
 }

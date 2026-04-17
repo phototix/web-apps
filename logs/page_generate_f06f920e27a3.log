@@ -1,0 +1,19 @@
+[0m
+> build · big-pickle
+[0m
+[0m✱ [0mGlob "*.csv"[90m 2 matches[0m
+[0m→ [0mRead report.csv
+[0m→ [0mRead reports.csv
+[0m
+[0m← [0mWrite app.html
+Wrote file successfully.
+[0m
+[0m← [0mWrite app.js
+Wrote file successfully.
+[0m
+I've created the report page with:
+
+- **Filter bar**: Dropdowns to filter by Case and Category, plus a refresh button
+- **Report cards**: Grid display showing image, case name, category, truncated data, and timestamp
+- **Detail modal**: Click "View Details" to see the full report with image and all data
+- **Auto-loading**: Reads from report.csv (or reports.csv if not found)

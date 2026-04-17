@@ -9,7 +9,7 @@ function app_roles(): array
 
 function app_find_user_by_email(PDO $pdo, string $email): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, password_hash, settings, created_at FROM users WHERE email = :email LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, parent_id, password_hash, settings, created_at, expiry_date, last_login_at, agent_contacts FROM users WHERE email = :email LIMIT 1');
     $statement->execute(['email' => strtolower(trim($email))]);
 
     $user = $statement->fetch();
@@ -19,7 +19,7 @@ function app_find_user_by_email(PDO $pdo, string $email): ?array
 
 function app_find_user_by_id(PDO $pdo, int $id): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, tier, parent_id, settings, created_at FROM users WHERE id = :id LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, tier, parent_id, settings, created_at, expiry_date, last_login_at, agent_contacts FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => $id]);
 
     $user = $statement->fetch();
@@ -31,6 +31,14 @@ function app_login_user(array $user): void
 {
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $user['id'];
+    app_update_last_login((int) $user['id']);
+}
+
+function app_update_last_login(int $userId): void
+{
+    $pdo = app_db();
+    $stmt = $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = :id');
+    $stmt->execute(['id' => $userId]);
 }
 
 function app_magic_login_token_ttl(): int
@@ -142,10 +150,41 @@ function app_get_effective_user(array $user): array
     return $parent ?: $user;
 }
 
+function app_is_expiry_date_expired(?string $expiryDate): bool
+{
+    if ($expiryDate === null || $expiryDate === '') {
+        return false;
+    }
+
+    $today = (new DateTimeImmutable('today'))->format('Y-m-d');
+
+    return $expiryDate <= $today;
+}
+
+function app_is_admin_account_expired(array $user): bool
+{
+    if (($user['role'] ?? '') !== 'admin') {
+        return false;
+    }
+
+    return app_is_expiry_date_expired($user['expiry_date'] ?? null);
+}
+
+function app_is_parent_admin_expired(array $user): bool
+{
+    $parent = app_get_parent_user($user);
+    if ($parent === null) {
+        return false;
+    }
+
+    return app_is_admin_account_expired($parent);
+}
+
 function app_logout_user(): void
 {
     $user = app_current_user();
     $email = $user['email'] ?? 'unknown';
+    app_log_audit('logout', [], $user);
     
     $_SESSION = [];
 
@@ -165,6 +204,29 @@ function app_require_auth(): void
         app_flash('error', 'Please sign in to continue.');
         app_redirect('/login');
     }
+
+    $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+    $path = $path === '' ? '/' : rtrim($path, '/');
+    if ($path === '') {
+        $path = '/';
+    }
+
+    if (in_array($path, ['/expired', '/restricted'], true)) {
+        return;
+    }
+
+    $user = app_current_user();
+    if ($user === null) {
+        return;
+    }
+
+    if (app_is_admin_account_expired($user)) {
+        app_redirect('/expired');
+    }
+
+    if (($user['role'] ?? '') === 'users' && app_is_parent_admin_expired($user)) {
+        app_redirect('/restricted');
+    }
 }
 
 function app_require_guest(): void
@@ -174,7 +236,62 @@ function app_require_guest(): void
     }
 }
 
-function app_attempt_login(string $email, string $password): bool
+function app_generate_mfa_secret(int $length = 32): string
+{
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $maxIndex = strlen($alphabet) - 1;
+    $secret = '';
+
+    for ($i = 0; $i < $length; $i++) {
+        $secret .= $alphabet[random_int(0, $maxIndex)];
+    }
+
+    return $secret;
+}
+
+function app_validate_mfa_otp(string $secret, string $otp): bool
+{
+    $secret = strtoupper(preg_replace('/[^A-Z2-7]/', '', $secret));
+    $otp = preg_replace('/\D+/', '', $otp);
+
+    if ($secret === '' || $otp === '') {
+        return false;
+    }
+
+    $url = 'https://kkbuddy.com/getotp.php?key=' . urlencode($secret) . '&format=api';
+    $response = null;
+
+    $ch = curl_init();
+    if ($ch !== false) {
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_CONNECTTIMEOUT => 3,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false || $httpCode >= 400) {
+            return false;
+        }
+    } else {
+        $response = @file_get_contents($url);
+        if ($response === false) {
+            return false;
+        }
+    }
+
+    $decoded = json_decode((string) $response, true);
+    if (!is_array($decoded) || empty($decoded['code'])) {
+        return false;
+    }
+
+    return hash_equals((string) $decoded['code'], (string) $otp);
+}
+
+function app_attempt_login(string $email, string $password, ?string $otp = null): bool
 {
     $user = app_find_user_by_email(app_db(), $email);
 
@@ -188,8 +305,33 @@ function app_attempt_login(string $email, string $password): bool
         return false;
     }
 
+    $settings = [];
+    if (!empty($user['settings'])) {
+        $decodedSettings = json_decode($user['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $mfaEnabled = !empty($settings['mfa_enabled']);
+    if ($mfaEnabled) {
+        $mfaSecret = (string) ($settings['mfa_secret'] ?? '');
+        $otp = is_string($otp) ? trim($otp) : '';
+
+        if ($mfaSecret === '' || $otp === '') {
+            app_log_auth($email, 'login', false);
+            return false;
+        }
+
+        if (!app_validate_mfa_otp($mfaSecret, $otp)) {
+            app_log_auth($email, 'login', false);
+            return false;
+        }
+    }
+
     app_login_user($user);
     app_log_auth($email, 'login', true);
+    app_log_audit('login', [], $user);
 
     return true;
 }

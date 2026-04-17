@@ -9,7 +9,7 @@ function app_roles(): array
 
 function app_find_user_by_email(PDO $pdo, string $email): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, password_hash, created_at FROM users WHERE email = :email LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, password_hash, settings, created_at FROM users WHERE email = :email LIMIT 1');
     $statement->execute(['email' => strtolower(trim($email))]);
 
     $user = $statement->fetch();
@@ -19,7 +19,7 @@ function app_find_user_by_email(PDO $pdo, string $email): ?array
 
 function app_find_user_by_id(PDO $pdo, int $id): ?array
 {
-    $statement = $pdo->prepare('SELECT id, name, email, role, tier, parent_id, created_at FROM users WHERE id = :id LIMIT 1');
+    $statement = $pdo->prepare('SELECT id, name, email, role, tier, parent_id, settings, created_at FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => $id]);
 
     $user = $statement->fetch();

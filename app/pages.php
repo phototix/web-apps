@@ -249,13 +249,74 @@ function app_page_settings(): void
     app_require_auth();
 
     $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = $effectiveUser['id'] ?? 0;
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $currencyOptions = [
+        'USD' => 'USD - US Dollar',
+        'SGD' => 'SGD - Singapore Dollar',
+        'MYR' => 'MYR - Malaysian Ringgit',
+        'THB' => 'THB - Thai Baht',
+        'IDR' => 'IDR - Indonesian Rupiah',
+        'PHP' => 'PHP - Philippine Peso',
+        'VND' => 'VND - Vietnamese Dong',
+        'BND' => 'BND - Brunei Dollar',
+        'KHR' => 'KHR - Cambodian Riel',
+        'LAK' => 'LAK - Lao Kip',
+        'MMK' => 'MMK - Myanmar Kyat'
+    ];
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
     
     // Get current page from query parameter
     $currentPage = $_GET['page'] ?? 'account';
-    $validPages = ['account', 'category'];
+    $validPages = ['account', 'global', 'category'];
     
     if (!in_array($currentPage, $validPages)) {
         $currentPage = 'account';
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['settings_action'] ?? '') === 'update_global_settings') {
+        $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
+        if (!array_key_exists($requestedCurrency, $currencyOptions)) {
+            app_flash('error', 'Invalid currency selection.');
+            app_redirect('/settings?page=global');
+        }
+
+        $settings['default_currency'] = $requestedCurrency;
+        $encodedSettings = json_encode($settings);
+        if ($encodedSettings === false) {
+            app_flash('error', 'Failed to save settings.');
+            app_redirect('/settings?page=global');
+        }
+
+        try {
+            $db = app_db();
+            $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+            $stmt->execute([
+                'settings' => $encodedSettings,
+                'id' => $effectiveUserId
+            ]);
+            app_flash('success', 'Global settings updated.');
+        } catch (Exception $e) {
+            app_log('Failed to update settings: ' . $e->getMessage(), 'ERROR');
+            app_flash('error', 'Failed to save settings.');
+        }
+
+        app_redirect('/settings?page=global');
     }
 
     app_render_head('Settings');
@@ -285,6 +346,14 @@ function app_page_settings(): void
                                 <small class="text-muted">Profile and preferences</small>
                             </div>
                         </a>
+                        <a href="/settings?page=global" 
+                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'global' ? 'active' : '' ?>">
+                            <i class="fas fa-globe me-3"></i>
+                            <div>
+                                <div class="fw-medium">Global Settings</div>
+                                <small class="text-muted">Defaults for currency and display</small>
+                            </div>
+                        </a>
                         <a href="/settings?page=category" 
                            class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'category' ? 'active' : '' ?>">
                             <i class="fas fa-tags me-3"></i>
@@ -309,10 +378,10 @@ function app_page_settings(): void
             <div class="card mb-4">
                 <div class="card-header bg-white border-bottom-0">
                     <h4 class="mb-0">
-                        <?= $currentPage === 'account' ? 'Account Settings' : '' ?>
+                        <?= $currentPage === 'account' ? 'Account Settings' : ($currentPage === 'global' ? 'Global Settings' : 'Category Management') ?>
                     </h4>
                     <p class="text-muted mb-0">
-                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : '' ?>
+                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : ($currentPage === 'global' ? 'Configure default currency and display settings' : 'Manage your categories and group organization') ?>
                     </p>
                 </div>
                 <div class="card-body">
@@ -366,6 +435,34 @@ function app_page_settings(): void
                                 </div>
                             </div>
                         </div>
+                    <?php elseif ($currentPage === 'global'): ?>
+                        <!-- Global Settings Content -->
+                        <form method="post" action="/settings?page=global">
+                            <input type="hidden" name="settings_action" value="update_global_settings">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Default Currency</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="default_currency">Currency</label>
+                                                <select class="form-select" id="default_currency" name="default_currency">
+                                                    <?php foreach ($currencyOptions as $currencyCode => $currencyLabel): ?>
+                                                        <option value="<?= htmlspecialchars($currencyCode, ENT_QUOTES, 'UTF-8') ?>" <?= $defaultCurrency === $currencyCode ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($currencyLabel, ENT_QUOTES, 'UTF-8') ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <small class="text-muted">Applied to amounts in Cases.</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
                     <?php else: ?>
                         <!-- Category Management Content -->
                         <div class="category-management">
@@ -1347,6 +1444,7 @@ function app_page_cases(): void
     </div>
     
     <script>
+    const casesDefaultCurrency = <?= json_encode($defaultCurrency, JSON_UNESCAPED_SLASHES) ?>;
     // Global functions for category assignment
      function loadCategoriesForMessage(messageId, dropdownItem) {
          console.log('loadCategoriesForMessage called with messageId:', messageId, 'dropdownItem:', dropdownItem);
@@ -1499,6 +1597,29 @@ function app_page_cases(): void
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function formatAmount(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        const rawText = value.toString().trim();
+        if (!rawText) {
+            return '';
+        }
+        const numericValue = parseFloat(rawText.replace(/,/g, ''));
+        if (!Number.isFinite(numericValue)) {
+            return rawText;
+        }
+        const formattedNumber = numericValue.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        const currencyCode = typeof casesDefaultCurrency === 'string' ? casesDefaultCurrency.trim() : '';
+        if (!currencyCode) {
+            return formattedNumber;
+        }
+        return `${currencyCode} ${formattedNumber}`;
     }
 
     function openMessagesFilesImageLightbox(trigger) {
@@ -2568,18 +2689,18 @@ function app_page_cases(): void
                 }
                 html += `<p class="mb-1">${content}</p>`;
 
+                const amountTextRaw = formatAmount(message.amount);
+                if (amountTextRaw.length > 0) {
+                    html += `<div class="message-data-highlight">${escapeHtml(amountTextRaw)}</div>`;
+                }
+
                 const dataTextRaw = message.data !== null && message.data !== undefined ? message.data.toString().trim() : '';
                 if (dataTextRaw.length > 0) {
-                    const dataLines = dataTextRaw.split(/\r?\n/);
-                    if (dataLines.length > 1) {
-                        const encodedData = encodeURIComponent(dataTextRaw);
-                        html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
-                        html += '<i class="fas fa-eye me-1"></i>View data';
-                        html += '</button>';
-                        html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
-                    } else {
-                        html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
-                    }
+                    const encodedData = encodeURIComponent(dataTextRaw);
+                    html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
+                    html += '<i class="fas fa-eye me-1"></i>View data';
+                    html += '</button>';
+                    html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
                 }
                 
                 // Category badge if available
@@ -2726,18 +2847,18 @@ function app_page_cases(): void
                 // Sender info
                 html += `<p class="mb-1 text-muted">From: ${escapeHtml(file.sender_name || file.sender_number || 'Unknown')}</p>`;
 
+                const amountTextRaw = formatAmount(file.amount);
+                if (amountTextRaw.length > 0) {
+                    html += `<div class="message-data-highlight">${escapeHtml(amountTextRaw)}</div>`;
+                }
+
                 const dataTextRaw = file.data !== null && file.data !== undefined ? file.data.toString().trim() : '';
                 if (dataTextRaw.length > 0) {
-                    const dataLines = dataTextRaw.split(/\r?\n/);
-                    if (dataLines.length > 1) {
-                        const encodedData = encodeURIComponent(dataTextRaw);
-                        html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
-                        html += '<i class="fas fa-eye me-1"></i>View data';
-                        html += '</button>';
-                        html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
-                    } else {
-                        html += `<div class="message-data-highlight">${escapeHtml(dataTextRaw)}</div>`;
-                    }
+                    const encodedData = encodeURIComponent(dataTextRaw);
+                    html += `<button class="btn btn-sm btn-outline-secondary message-data-view" type="button" data-data-content="${encodedData}" onclick="openMessagesFilesDataModal(this)">`;
+                    html += '<i class="fas fa-eye me-1"></i>View data';
+                    html += '</button>';
+                    html += `<div class="message-data-hidden">${escapeHtml(dataTextRaw)}</div>`;
                 }
 
                 if (file.message_type === 'document' && file.media_url) {
@@ -2895,16 +3016,22 @@ function app_page_logout(): void
 function app_page_not_found(): void
 {
     http_response_code(404);
+    $reference = bin2hex(random_bytes(6));
+    app_log('Route not found', 'INFO', [
+        'reference' => $reference,
+        'path' => $_SERVER['REQUEST_URI'] ?? '',
+        'method' => $_SERVER['REQUEST_METHOD'] ?? ''
+    ]);
     app_render_head('Not Found');
 
     $theme = app_theme();
 
     if ($theme === 'softing-v2.0') {
-        app_render_not_found_softing();
+        app_render_not_found_softing($reference);
     } elseif ($theme === 'Anada-v2.0') {
-        app_render_not_found_anada();
+        app_render_not_found_anada($reference);
     } else {
-        app_render_not_found_sasoft();
+        app_render_not_found_sasoft($reference);
     }
 
     app_render_footer();
@@ -3021,10 +3148,11 @@ function app_render_welcome_sasoft(array $user): void
     // The dashboard layout is now handled by app_page_welcome()
 }
 
-function app_render_not_found_sasoft(): void
+function app_render_not_found_sasoft(?string $reference = null): void
 {
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
     ?>
-    <div class="error-page-area default-padding"><div class="container"><div class="row align-center"><div class="col-lg-6"><div class="error-box"><h1>404</h1><h2>Sorry page was not found!</h2><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div>
+    <div class="error-page-area default-padding"><div class="container"><div class="row align-center"><div class="col-lg-6"><div class="error-box"><h1>404</h1><h2>Sorry page was not found!</h2><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div>
     <?php
 }
 
@@ -3149,10 +3277,11 @@ function app_render_welcome_softing(array $user): void
     // The dashboard layout is now handled by app_page_welcome()
 }
 
-function app_render_not_found_softing(): void
+function app_render_not_found_softing(?string $reference = null): void
 {
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
     ?>
-    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>404 - Page Not Found</h2><p>The route does not exist.</p><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
+    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>404 - Page Not Found</h2><p>The route does not exist.</p><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
     <?php
 }
 
@@ -3277,10 +3406,11 @@ function app_render_welcome_anada(array $user): void
     // The dashboard layout is now handled by app_page_welcome()
 }
 
-function app_render_not_found_anada(): void
+function app_render_not_found_anada(?string $reference = null): void
 {
+    $refText = $reference ? '<p>Reference: <code>' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</code></p>' : '';
     ?>
-    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>404 - Page Not Found</h2><p>The route does not exist.</p><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
+    <div class="login-area"><div class="container"><div class="row"><div class="col-lg-4 offset-lg-4"><div class="login-box"><div class="login"><div class="content"><h2>404 - Page Not Found</h2><p>The route does not exist.</p><?= $refText ?><a href="/" class="btn circle btn-theme effect btn-md">Back Home</a></div></div></div></div></div></div></div>
     <?php
 }
 

@@ -6,3 +6,8 @@
 [10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 36
 [10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 38
 [10-Apr-2026 15:04:41 UTC] PHP Warning:  Undefined array key "max_sessions" in /var/www/html/erp.ezy.chat/scripts/add_active_session.php on line 39
+[17-Apr-2026 10:18:59 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY093]: Invalid parameter number in Command line code:1
+Stack trace:
+#0 Command line code(1): PDOStatement->execute()
+#1 {main}
+  thrown in Command line code on line 1

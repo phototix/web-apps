@@ -1716,6 +1716,395 @@ function app_page_groups(): void {
     app_render_footer();
 }
 
+function app_page_reports(): void {
+    app_require_auth();
+    $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = $effectiveUser['id'] ?? 0;
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $defaultCurrency = $settings['default_currency'] ?? 'USD';
+
+    app_render_head('Reports');
+    app_render_dashboard_start($user);
+    app_render_flash();
+
+    $filters = [
+        'session_id' => (int) ($_GET['session_id'] ?? 0),
+        'group_id' => (int) ($_GET['group_id'] ?? 0),
+        'category_id' => (int) ($_GET['category_id'] ?? 0),
+        'message_type' => trim((string) ($_GET['message_type'] ?? '')),
+        'sender' => trim((string) ($_GET['sender'] ?? '')),
+        'date_from' => trim((string) ($_GET['date_from'] ?? '')),
+        'date_to' => trim((string) ($_GET['date_to'] ?? ''))
+    ];
+
+    $sessions = app_whatsapp_get_user_sessions($effectiveUserId);
+    $groups = app_whatsapp_get_user_groups($effectiveUserId);
+    $categories = app_whatsapp_get_user_categories($effectiveUserId, null, true);
+
+    $groupsBySession = [];
+    foreach ($groups as $group) {
+        $sessionId = (int) ($group['session_id'] ?? 0);
+        if ($sessionId > 0) {
+            $groupsBySession[$sessionId][] = $group;
+        }
+    }
+
+    $messages = [];
+    try {
+        $db = app_db();
+        $query = "
+            SELECT gm.id, gm.session_id, gm.group_id, gm.message_id, gm.sender_number, gm.sender_name,
+                   gm.message_type, gm.content, gm.data, gm.media_caption, gm.caption, gm.amount, gm.timestamp,
+                   wg.name as group_name, ws.session_name,
+                   c.name as category_name, c.color as category_color
+            FROM group_messages gm
+            JOIN whatsapp_groups wg ON gm.session_id = wg.session_id AND gm.group_id = wg.group_id
+            JOIN whatsapp_sessions ws ON gm.session_id = ws.id
+            LEFT JOIN categories c ON gm.category_id = c.id AND c.user_id = :category_user_id
+            WHERE ws.user_id = :user_id AND gm.category_id IS NOT NULL
+        ";
+
+        $params = ['user_id' => $effectiveUserId, 'category_user_id' => $effectiveUserId];
+
+        if ($filters['session_id'] > 0) {
+            $query .= " AND gm.session_id = :session_id";
+            $params['session_id'] = $filters['session_id'];
+        }
+
+        if ($filters['group_id'] > 0) {
+            $query .= " AND wg.id = :group_id";
+            $params['group_id'] = $filters['group_id'];
+        }
+
+        if ($filters['category_id'] > 0) {
+            $query .= " AND gm.category_id = :category_id";
+            $params['category_id'] = $filters['category_id'];
+        }
+
+        if ($filters['message_type'] !== '') {
+            $query .= " AND gm.message_type = :message_type";
+            $params['message_type'] = $filters['message_type'];
+        }
+
+        if ($filters['sender'] !== '') {
+            $query .= " AND (gm.sender_name LIKE :sender OR gm.sender_number LIKE :sender)";
+            $params['sender'] = '%' . $filters['sender'] . '%';
+        }
+
+        if ($filters['date_from'] !== '') {
+            $startTimestamp = strtotime($filters['date_from'] . ' 00:00:00');
+            if ($startTimestamp !== false) {
+                $query .= " AND gm.timestamp >= :start_timestamp";
+                $params['start_timestamp'] = $startTimestamp * 1000;
+            }
+        }
+
+        if ($filters['date_to'] !== '') {
+            $endTimestamp = strtotime($filters['date_to'] . ' 23:59:59');
+            if ($endTimestamp !== false) {
+                $query .= " AND gm.timestamp <= :end_timestamp";
+                $params['end_timestamp'] = $endTimestamp * 1000;
+            }
+        }
+
+        $query .= " ORDER BY gm.timestamp DESC";
+
+        $stmt = $db->prepare($query);
+        $stmt->execute($params);
+        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $messages = [];
+    }
+
+    $messageTypes = [
+        'chat' => 'Chat',
+        'image' => 'Image',
+        'video' => 'Video',
+        'audio' => 'Audio',
+        'document' => 'Document',
+        'sticker' => 'Sticker',
+        'location' => 'Location',
+        'contact' => 'Contact',
+        'poll' => 'Poll',
+        'other' => 'Other'
+    ];
+
+    ?>
+    <div class="container-fluid">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="mb-1">Reports</h2>
+                <div class="text-muted small">Messages grouped by case and session with assigned categories</div>
+            </div>
+            <div class="d-flex gap-2 mt-2 mt-md-0">
+                <button type="button" class="btn btn-outline-secondary" id="export-csv">
+                    <i class="fas fa-file-csv me-1"></i> CSV
+                </button>
+                <button type="button" class="btn btn-outline-success" id="export-xlsx">
+                    <i class="fas fa-file-excel me-1"></i> Excel
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="export-pdf">
+                    <i class="fas fa-file-pdf me-1"></i> PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">Filters</h6>
+            </div>
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Session</label>
+                        <select class="form-select" name="session_id">
+                            <option value="0">All Sessions</option>
+                            <?php foreach ($sessions as $session): ?>
+                                <?php $sessionId = (int) ($session['id'] ?? 0); ?>
+                                <option value="<?= $sessionId ?>" <?= $filters['session_id'] === $sessionId ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($session['session_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Case (Group)</label>
+                        <select class="form-select" name="group_id">
+                            <option value="0">All Cases</option>
+                            <?php foreach ($sessions as $session): ?>
+                                <?php
+                                $sessionId = (int) ($session['id'] ?? 0);
+                                $sessionGroups = $groupsBySession[$sessionId] ?? [];
+                                if (empty($sessionGroups)) {
+                                    continue;
+                                }
+                                ?>
+                                <optgroup label="<?= htmlspecialchars($session['session_name'] ?? 'Session', ENT_QUOTES, 'UTF-8') ?>">
+                                    <?php foreach ($sessionGroups as $group): ?>
+                                        <?php $groupId = (int) ($group['id'] ?? 0); ?>
+                                        <option value="<?= $groupId ?>" <?= $filters['group_id'] === $groupId ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($group['name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" name="category_id">
+                            <option value="0">All Categories</option>
+                            <?php foreach ($categories as $category): ?>
+                                <?php $categoryId = (int) ($category['id'] ?? 0); ?>
+                                <option value="<?= $categoryId ?>" <?= $filters['category_id'] === $categoryId ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($category['name'] ?? 'Category', ENT_QUOTES, 'UTF-8') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Message Type</label>
+                        <select class="form-select" name="message_type">
+                            <option value="">All Types</option>
+                            <?php foreach ($messageTypes as $typeKey => $typeLabel): ?>
+                                <option value="<?= $typeKey ?>" <?= $filters['message_type'] === $typeKey ? 'selected' : '' ?>>
+                                    <?= $typeLabel ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">Sender</label>
+                        <input type="text" class="form-control" name="sender" value="<?= htmlspecialchars($filters['sender'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Name or number">
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">From</label>
+                        <input type="date" class="form-control" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label">To</label>
+                        <input type="date" class="form-control" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-lg-3 col-md-6 d-flex align-items-end">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Apply Filters</button>
+                            <a href="/reports" class="btn btn-outline-secondary">Reset</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Results</h6>
+                <div class="text-muted small"><?= count($messages) ?> messages</div>
+            </div>
+            <div class="card-body">
+                <?php if (empty($messages)): ?>
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No categorized messages match the selected filters.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="reports-table">
+                            <thead>
+                                <tr>
+                                    <th>Case</th>
+                                    <th>Sender</th>
+                                    <th>Data</th>
+                                    <th>Amount</th>
+                                    <th>Category</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($messages as $message): ?>
+                                    <?php
+                                    $messageData = (string) ($message['data'] ?? '');
+
+                                    $timestamp = (int) ($message['timestamp'] ?? 0);
+                                    $displayTime = $timestamp > 0 ? date('M d, Y H:i', (int) floor($timestamp / 1000)) : 'Unknown';
+                                    $senderLabel = $message['sender_name'] ?: $message['sender_number'];
+                                    $amountValue = $message['amount'];
+                                    if ($amountValue !== null && $amountValue !== '') {
+                                        $amountValue = $defaultCurrency . ' ' . number_format((float) $amountValue, 2, '.', ',');
+                                    } else {
+                                        $amountValue = '-';
+                                    }
+                                    ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($message['group_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars($senderLabel ?: 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>
+                                        </td>
+                                        <td><?= htmlspecialchars($amountValue, ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <span class="badge" style="background-color: <?= htmlspecialchars($message['category_color'] ?? '#6c757d', ENT_QUOTES, 'UTF-8') ?>;">
+                                                <?= htmlspecialchars($message['category_name'] ?? 'Uncategorized', ENT_QUOTES, 'UTF-8') ?>
+                                            </span>
+                                        </td>
+                                        <td><?= htmlspecialchars($displayTime, ENT_QUOTES, 'UTF-8') ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        (function() {
+            const table = document.getElementById('reports-table');
+            const csvButton = document.getElementById('export-csv');
+            const xlsxButton = document.getElementById('export-xlsx');
+            const pdfButton = document.getElementById('export-pdf');
+
+            function getTableData() {
+                if (!table) {
+                    return { headers: [], rows: [] };
+                }
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
+                    return Array.from(row.querySelectorAll('td')).map(cell => cell.textContent.trim());
+                });
+                return { headers, rows };
+            }
+
+            function downloadFile(blob, filename) {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }
+
+            function exportCsv() {
+                const data = getTableData();
+                if (!data.rows.length) {
+                    alert('No data to export.');
+                    return;
+                }
+                const escapeValue = value => {
+                    if (value.includes('"') || value.includes(',') || value.includes('\n')) {
+                        return '"' + value.replace(/"/g, '""') + '"';
+                    }
+                    return value;
+                };
+                const lines = [data.headers.map(escapeValue).join(',')];
+                data.rows.forEach(row => {
+                    lines.push(row.map(escapeValue).join(','));
+                });
+                const csvContent = lines.join('\n');
+                downloadFile(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), 'reports.csv');
+            }
+
+            function exportXlsx() {
+                const data = getTableData();
+                if (!data.rows.length || !window.XLSX) {
+                    alert('No data to export.');
+                    return;
+                }
+                const worksheet = window.XLSX.utils.aoa_to_sheet([data.headers, ...data.rows]);
+                const workbook = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Reports');
+                window.XLSX.writeFile(workbook, 'reports.xlsx');
+            }
+
+            function exportPdf() {
+                const data = getTableData();
+                if (!data.rows.length || !window.jspdf || !window.jspdf.jsPDF) {
+                    alert('No data to export.');
+                    return;
+                }
+                const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+                doc.setFontSize(12);
+                doc.text('Reports', 40, 40);
+                if (doc.autoTable) {
+                    doc.autoTable({
+                        startY: 60,
+                        head: [data.headers],
+                        body: data.rows,
+                        styles: { fontSize: 8, cellPadding: 3 }
+                    });
+                }
+                doc.save('reports.pdf');
+            }
+
+            if (csvButton) {
+                csvButton.addEventListener('click', exportCsv);
+            }
+            if (xlsxButton) {
+                xlsxButton.addEventListener('click', exportXlsx);
+            }
+            if (pdfButton) {
+                pdfButton.addEventListener('click', exportPdf);
+            }
+        })();
+    </script>
+    <?php
+
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
 function app_page_admin_users(): void {
     app_require_auth();
     $user = app_current_user();

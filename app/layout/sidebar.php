@@ -30,6 +30,12 @@ function app_render_dashboard_sidebar(): void
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link <?= strpos($currentPath, '/reports') !== false ? 'active' : '' ?>" href="/reports">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Reports</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link <?= strpos($currentPath, '/groups') !== false ? 'active' : '' ?>" href="/groups">
                             <i class="fas fa-users"></i>
                             <span>Groups Chats</span>

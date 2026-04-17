@@ -3444,7 +3444,7 @@ function app_page_pages(): void
                     </div>
                     <div class="card-body">
                         <div class="text-center mb-4">
-                            <video class="rounded" autoplay muted loop playsinline style="width: 40%; max-width: 520px; height: auto;">
+                            <video class="rounded" autoplay muted loop playsinline style="width: 30%; max-width: 320px; height: auto;">
                                 <source src="/assets/videos/building.mp4" type="video/mp4">
                             </video>
                             <div class="text-muted small mt-2">Your page is still being built. Check back soon.</div>

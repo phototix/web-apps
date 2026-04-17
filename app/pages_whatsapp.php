@@ -1975,10 +1975,10 @@ function app_page_reports(): void {
                                     $displayTime = $timestamp > 0 ? date('M d, Y H:i', (int) floor($timestamp / 1000)) : 'Unknown';
                                     $senderLabel = $message['sender_name'] ?: $message['sender_number'];
                                     $amountValue = $message['amount'];
-                                    if ($amountValue !== null && $amountValue !== '') {
+                                    if ($amountValue !== null && $amountValue !== '' && (float) $amountValue !== 0.0) {
                                         $amountValue = $defaultCurrency . ' ' . number_format((float) $amountValue, 2, '.', ',');
                                     } else {
-                                        $amountValue = '-';
+                                        $amountValue = '- N/A -';
                                     }
                                     ?>
                                     <tr>

@@ -65,6 +65,7 @@ require_once __DIR__ . '/logging.php';
 require_once __DIR__ . '/router.php';
 require_once __DIR__ . '/whatsapp.php';
 require_once __DIR__ . '/webhooks.php';
+require_once __DIR__ . '/webbycloud.php';
 
 function app_is_api_request(): bool
 {

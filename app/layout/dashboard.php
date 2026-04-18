@@ -98,29 +98,36 @@ function app_render_dashboard_css(): void
             border-left-color: #0d6efd;
         }
         
-        .nav-link i {
+.nav-link i, .nav-link svg {
             width: 20px;
+            height: 20px;
             text-align: center;
+            display: inline-block;
+            vertical-align: middle;
         }
-        
+
         .avatar-placeholder {
             font-size: 14px;
             font-weight: bold;
         }
-        
+
         @media (max-width: 768px) {
             .dashboard-sidebar {
                 width: 70px;
             }
-            
+
             .dashboard-content {
                 margin-left: 70px;
             }
-            
+
+            .dashboard-content.collapsed {
+                margin-left: 0;
+            }
+
             .nav-link span {
                 display: none;
             }
-            
+
             .nav-link i {
                 margin-right: 0;
             }

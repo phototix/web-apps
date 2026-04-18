@@ -1913,3 +1913,36 @@ function api_require_whatsapp_access(): array {
     
     return $user;
 }
+
+function api_webbycloud_files(): void
+{
+    api_require_method('GET');
+    $user = api_require_auth();
+
+    $settings = [];
+    if (!empty($user['settings'])) {
+        $decodedSettings = json_decode($user['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $webbycloud = $settings['webbycloud'] ?? [];
+    if (empty($webbycloud['connected']) || empty($webbycloud['access_token'])) {
+        api_error('WebbyCloud is not connected.', [], 403);
+    }
+
+    $config = app_webbycloud_config();
+    $accessToken = (string) $webbycloud['access_token'];
+    $cloudUserId = (string) ($webbycloud['user_id'] ?? '');
+
+    try {
+        $files = app_webbycloud_list_files($config, $accessToken, $cloudUserId);
+        api_success('Files retrieved', [
+            'files' => $files,
+            'count' => count($files),
+        ]);
+    } catch (Throwable $e) {
+        api_error('Failed to fetch files: ' . $e->getMessage());
+    }
+}

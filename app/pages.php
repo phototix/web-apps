@@ -126,6 +126,724 @@ function app_page_register(): void
     app_render_footer();
 }
 
+function app_page_webbycloud_connect(): void
+{
+    $config = app_webbycloud_config();
+    if (!app_webbycloud_validate_config($config)) {
+        app_flash('error', 'WebbyCloud configuration is missing.');
+        app_redirect('/login');
+    }
+
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['webbycloud_oauth_state'] = $state;
+
+    $user = app_current_user();
+    if ($user !== null) {
+        $_SESSION['webbycloud_link_user_id'] = (int) $user['id'];
+        unset($_SESSION['webbycloud_login']);
+    } else {
+        $_SESSION['webbycloud_login'] = true;
+        unset($_SESSION['webbycloud_link_user_id']);
+    }
+
+    $authorizeUrl = app_webbycloud_authorize_url($config, $state);
+    app_redirect($authorizeUrl);
+}
+
+function app_page_webbycloud_callback(): void
+{
+    $config = app_webbycloud_config();
+    if (!app_webbycloud_validate_config($config)) {
+        app_flash('error', 'WebbyCloud configuration is missing.');
+        app_redirect('/login');
+    }
+
+    $expectedState = (string) ($_SESSION['webbycloud_oauth_state'] ?? '');
+    unset($_SESSION['webbycloud_oauth_state']);
+
+    $state = trim((string) ($_GET['state'] ?? ''));
+    $code = trim((string) ($_GET['code'] ?? ''));
+
+    if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
+        app_flash('error', 'Invalid OAuth state. Please try again.');
+        app_redirect('/login');
+    }
+
+    if ($code === '') {
+        app_flash('error', 'Authorization failed. Please try again.');
+        app_redirect('/login');
+    }
+
+    try {
+        $tokenResponse = app_webbycloud_exchange_code($config, $code);
+        $accessToken = (string) ($tokenResponse['access_token'] ?? '');
+        $refreshToken = (string) ($tokenResponse['refresh_token'] ?? '');
+        $expiresIn = (int) ($tokenResponse['expires_in'] ?? 0);
+        $profile = app_webbycloud_fetch_user($config, $accessToken);
+    } catch (Throwable $exception) {
+        app_log('WebbyCloud OAuth error: ' . $exception->getMessage(), 'ERROR');
+        app_flash('error', 'Unable to connect to WebbyCloud.');
+        app_redirect('/login');
+    }
+
+    $email = strtolower(trim((string) ($profile['email'] ?? '')));
+    if ($email === '') {
+        app_flash('error', 'WebbyCloud did not return an email address.');
+        app_redirect('/login');
+    }
+
+    $currentUser = app_current_user();
+    $targetUser = null;
+
+    if ($currentUser !== null) {
+        $currentEmail = strtolower(trim((string) ($currentUser['email'] ?? '')));
+        if ($currentEmail === '' || $currentEmail !== $email) {
+            app_flash('error', 'WebbyCloud email does not match this account.');
+            app_redirect('/settings?page=connects');
+        }
+        $targetUser = $currentUser;
+    } else {
+        $targetUser = app_find_user_by_email(app_db(), $email);
+        if ($targetUser === null) {
+            app_flash('error', 'No account found for this email. Please sign up first, then connect your WebbyCloud account.');
+            app_redirect('/register');
+        }
+    }
+
+    $settings = [];
+    if (!empty($targetUser['settings'])) {
+        $decodedSettings = json_decode($targetUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $settings['webbycloud'] = [
+        'connected' => true,
+        'email' => $email,
+        'user_id' => (string) ($profile['id'] ?? ''),
+        'display_name' => (string) ($profile['display_name'] ?? ''),
+        'access_token' => $accessToken,
+        'refresh_token' => $refreshToken,
+        'expires_at' => $expiresIn > 0 ? date('Y-m-d H:i:s', time() + $expiresIn) : null,
+        'connected_at' => date('Y-m-d H:i:s'),
+    ];
+
+    try {
+        $encodedSettings = json_encode($settings);
+        if ($encodedSettings === false) {
+            throw new RuntimeException('Failed to encode settings.');
+        }
+
+        $db = app_db();
+        $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+        $stmt->execute([
+            'settings' => $encodedSettings,
+            'id' => (int) $targetUser['id'],
+        ]);
+    } catch (Throwable $exception) {
+        app_log('Failed to save WebbyCloud settings: ' . $exception->getMessage(), 'ERROR');
+        app_flash('error', 'Unable to save WebbyCloud connection.');
+        app_redirect('/settings?page=connects');
+    }
+
+    if ($currentUser === null) {
+        app_login_user($targetUser);
+        app_log_auth($email, 'login', true);
+        app_log_audit('login', [], $targetUser);
+    }
+
+    app_log_audit('webbycloud_connect', ['email' => $email], $targetUser);
+    app_flash('success', 'WebbyCloud account connected.');
+    app_redirect('/settings?page=connects');
+}
+
+function app_page_webbycloud_files(): void
+{
+    app_require_auth();
+    $user = app_current_user();
+
+    $settings = [];
+    if (!empty($user['settings'])) {
+        $decodedSettings = json_decode($user['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $webbycloud = $settings['webbycloud'] ?? [];
+    if (empty($webbycloud['connected']) || empty($webbycloud['access_token'])) {
+        app_flash('error', 'WebbyCloud is not connected.');
+        app_redirect('/settings?page=connects');
+    }
+
+    $config = app_webbycloud_config();
+    $accessToken = (string) $webbycloud['access_token'];
+    $cloudUserId = (string) ($webbycloud['user_id'] ?? '');
+
+    $files = [];
+    $errorMessage = '';
+    try {
+        $files = app_webbycloud_list_files($config, $accessToken, $cloudUserId);
+    } catch (Throwable $e) {
+        $errorMessage = $e->getMessage();
+        app_log('WebbyCloud files error: ' . $errorMessage, 'ERROR');
+    }
+
+    app_render_head('WebbyCloud Files');
+    app_render_dashboard_start($user);
+    app_render_flash();
+    ?>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-white border-bottom-0">
+                    <h5 class="mb-0">WebbyCloud Files</h5>
+                </div>
+                <div class="card-body">
+                    <?php if ($errorMessage): ?>
+                        <div class="alert alert-danger"><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></div>
+                    <?php elseif (empty($files)): ?>
+                        <p class="text-muted">No files found or no file access permission.</p>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Size</th>
+                                        <th>Modified</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($files as $file): $size = (int) ($file['size'] ?? 0); ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars((string) ($file['name'] ?? 'Untitled'), ENT_QUOTES, 'UTF-8') ?></td>
+                                            <td><?= $size > 0 ? number_format($size) . ' B' : '-' ?></td>
+                                            <td><?= htmlspecialchars((string) ($file['modified'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                    <a href="/settings?page=connects" class="btn btn-outline-secondary mt-3">Back to Connects</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
+function app_page_files(): void
+{
+    app_require_auth();
+    $user = app_current_user();
+    $effectiveUser = $user ? app_get_effective_user($user) : $user;
+    $effectiveUserId = (int) ($effectiveUser['id'] ?? 0);
+
+    $settings = [];
+    if (!empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $webbycloud = $settings['webbycloud'] ?? [];
+    $webbycloudConnected = !empty($webbycloud['connected']);
+    $cloudFiles = [];
+    $cloudFolders = [];
+    $cloudError = '';
+    $cloudBaseUrl = '';
+
+    if ($webbycloudConnected && !empty($webbycloud['access_token'])) {
+        try {
+            $config = app_webbycloud_config();
+            $cloudUserId = (string) ($webbycloud['user_id'] ?? '');
+            if ($cloudUserId !== '') {
+                $cloudBaseUrl = rtrim(preg_replace('#/ocs/v2.php/.*#', '', $config['user_info_url']), '/')
+                    . '/remote.php/dav/files/' . $cloudUserId . '/';
+            }
+            $cloudFolder = trim($_GET['cloud_folder'] ?? '');
+            
+            $rootFiles = app_webbycloud_list_files($config, (string) $webbycloud['access_token'], $cloudUserId);
+            if ($cloudFolder) {
+                $cloudFiles = app_webbycloud_list_files($config, (string) $webbycloud['access_token'], $cloudUserId, $cloudFolder);
+            } else {
+                $cloudFiles = $rootFiles;
+            }
+            
+            $skipPaths = ['remote.php', 'dav', 'files', ''];
+            $cloudFolders = [];
+            
+            foreach ($rootFiles as $cf) {
+                $path = $cf['path'] ?? '';
+                $type = $cf['type'] ?? 'file';
+                $name = $cf['name'] ?? '';
+                
+                if (!$name || $name === '/') continue;
+                
+                $pathParts = explode('/', trim($path, '/'));
+                $firstPart = $pathParts[0] ?? '';
+                
+                if ($firstPart && !in_array($firstPart, $skipPaths) && $type === 'folder') {
+                    $key = $name;
+                    if (!isset($cloudFolders[$key])) {
+                        $cloudFolders[$key] = [
+                            'name' => $name,
+                            'path' => $path,
+                            'type' => $type
+                        ];
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            $cloudError = $e->getMessage();
+        }
+    }
+
+    $localFiles = [];
+    $categoryTree = [];
+    $allCategories = [];
+    try {
+        $db = app_db();
+        $categoryStmt = $db->prepare('
+            SELECT id, name, parent_id, color 
+            FROM categories 
+            WHERE user_id = :user_id
+            ORDER BY parent_id, name
+        ');
+        $categoryStmt->execute(['user_id' => $effectiveUserId]);
+        $allCategoriesRaw = $categoryStmt->fetchAll();
+
+        $categoryById = [];
+        $categoryChildren = [];
+        $rootCategories = [];
+        foreach ($allCategoriesRaw as $cat) {
+            $catId = (int) $cat['id'];
+            $categoryById[$catId] = $cat;
+            $parentId = (int) ($cat['parent_id'] ?? 0);
+            if ($parentId > 0) {
+                if (!isset($categoryChildren[$parentId])) {
+                    $categoryChildren[$parentId] = [];
+                }
+                $categoryChildren[$parentId][] = $cat;
+            } else {
+                $rootCategories[] = $cat;
+            }
+        }
+        $allCategories = $categoryById;
+
+        $mediaStmt = $db->prepare('
+            SELECT gm.category_id, gm.message_type, gm.media_type, gm.media_url, gm.media_caption, gm.sender_name, gm.created_at
+            FROM group_messages gm
+            INNER JOIN whatsapp_sessions ws ON gm.session_id = ws.id
+            WHERE ws.user_id = :user_id 
+              AND gm.media_url IS NOT NULL 
+              AND gm.media_url != ""
+            ORDER BY gm.created_at DESC
+            LIMIT 500
+        ');
+        $mediaStmt->execute(['user_id' => $effectiveUserId]);
+        $mediaMessages = $mediaStmt->fetchAll();
+
+        $filesByCategory = [];
+        foreach ($mediaMessages as $msg) {
+            $categoryId = (int) ($msg['category_id'] ?? 0);
+            if ($categoryId <= 0) {
+                $categoryId = 0;
+            }
+            if (!isset($filesByCategory[$categoryId])) {
+                $filesByCategory[$categoryId] = [];
+            }
+            $filesByCategory[$categoryId][] = [
+                'name' => $msg['media_caption'] ?: basename((string) $msg['media_url']),
+                'path' => $msg['media_url'],
+                'type' => $msg['message_type'],
+                'media_type' => $msg['media_type'] ?? '',
+                'created_at' => $msg['created_at'],
+                'sender' => $msg['sender_name'] ?? '',
+                'source' => 'local',
+            ];
+        }
+        $localFiles = $filesByCategory;
+
+        $categoryTree = [];
+        foreach ($rootCategories as $cat) {
+            $catId = (int) $cat['id'];
+            $categoryTree[$catId] = [
+                'id' => $catId,
+                'name' => $cat['name'],
+                'color' => $cat['color'] ?? '#f1c40f',
+                'parent_id' => $cat['parent_id'],
+                'children' => app_build_category_tree($catId, $categoryChildren, $allCategories),
+                'depth' => 0
+            ];
+        }
+
+        function app_build_category_tree(int $parentId, array $categoryChildren, array $allCategories): array {
+            $result = [];
+            $children = $categoryChildren[$parentId] ?? [];
+            foreach ($children as $cat) {
+                $catId = (int) $cat['id'];
+                $result[$catId] = [
+                    'id' => $catId,
+                    'name' => $cat['name'],
+                    'color' => $cat['color'] ?? '#f1c40f',
+                    'parent_id' => $cat['parent_id'],
+                    'children' => app_build_category_tree($catId, $categoryChildren, $allCategories),
+                    'depth' => 0
+                ];
+            }
+            return $result;
+        }
+    } catch (Throwable $e) {
+        app_log('Files page error: ' . $e->getMessage(), 'ERROR');
+    }
+
+    function app_get_category_ids(int $categoryId, array $allCategories, array $categoryChildren): array {
+        $ids = [$categoryId];
+        $children = $categoryChildren[$categoryId] ?? [];
+        foreach ($children as $child) {
+            $ids = array_merge($ids, app_get_category_ids((int) $child['id'], $allCategories, $categoryChildren));
+        }
+        return $ids;
+    }
+
+    $currentCategoryId = (int) ($_GET['category'] ?? 0);
+    $currentCloudFolder = trim($_GET['cloud_folder'] ?? '');
+    $viewMode = $_GET['view'] ?? 'grid';
+
+    $currentCategoryIds = [];
+    if ($currentCategoryId > 0 && !empty($categoryChildren)) {
+        $currentCategoryIds = app_get_category_ids($currentCategoryId, $allCategories, $categoryChildren);
+    } elseif ($currentCategoryId > 0) {
+        $currentCategoryIds = [$currentCategoryId];
+    }
+
+    app_render_head('Files');
+    app_render_dashboard_start($user);
+    app_render_flash();
+    
+    $categoryMap = [];
+    foreach ($allCategories as $cat) {
+        $categoryMap[(int) $cat['id']] = $cat['name'];
+    }
+    ?>
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-3">
+                <div class="card-header bg-white border-bottom-0">
+                    <h6 class="mb-0">Directories</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="nav flex-column nav-pills">
+                        <li class="nav-item">
+                            <a class="nav-link <?= $currentCategoryId === 0 && !isset($_GET['cloud_folder']) ? 'active' : '' ?>" href="/files">
+                                <i class="fas fa-folder me-2 text-warning"></i>
+                                All Files
+                            </a>
+                            <?php if (!empty($rootCategories)): ?>
+                            <ul class="nav flex-column nav-pills ms-3 border-start border-2 ps-2">
+                                <?php foreach ($rootCategories as $cat): ?>
+                                <?php $catId = (int)$cat['id']; ?>
+                                <li class="nav-item">
+                                    <a class="nav-link <?= $currentCategoryId === $catId ? 'active' : '' ?>" href="/files?category=<?= $catId ?>">
+                                        <i class="fas fa-folder me-2" style="color: <?= htmlspecialchars((string)($cat['color'] ?? '#f1c40f')) ?>"></i>
+                                        <?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                    <?php if (isset($categoryChildren[$catId])): ?>
+                                    <ul class="nav flex-column nav-pills ms-3 border-start border-2 ps-2">
+                                        <?php foreach ($categoryChildren[$catId] as $child): ?>
+                                        <?php $childId = (int)$child['id']; ?>
+                                        <li class="nav-item">
+                                            <a class="nav-link <?= $currentCategoryId === $childId ? 'active' : '' ?>" href="/files?category=<?= $childId ?>">
+                                                <i class="fas fa-folder me-2" style="color: <?= htmlspecialchars((string)($child['color'] ?? '#f1c40f')) ?>"></i>
+                                                <?= htmlspecialchars($child['name'], ENT_QUOTES, 'UTF-8') ?>
+                                            </a>
+                                        </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                    <?php endif; ?>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php endif; ?>
+                        </li>
+                        <?php if ($webbycloudConnected): ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?= isset($_GET['cloud_folder']) ? 'active' : '' ?>" href="/files?cloud_folder=">
+                                <i class="fas fa-cloud me-2 text-info"></i>
+                                WebbyCloud
+                            </a>
+                            <ul class="nav flex-column nav-pills ms-3 border-start border-2 ps-2">
+                                <?php foreach ($cloudFolders as $folder): ?>
+                                <li class="nav-item">
+                                    <a class="nav-link <?= $currentCloudFolder === $folder['path'] ? 'active' : '' ?>" href="/files?cloud_folder=<?= urlencode($folder['path']) ?>">
+                                        <i class="fas <?= ($folder['type'] ?? 'file') === 'folder' ? 'fa-folder' : 'fa-file' ?> me-2 text-warning"></i>
+                                        <?= htmlspecialchars($folder['name'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <?php if ($currentCloudFolder !== ''): ?>
+                            <?= htmlspecialchars(basename($currentCloudFolder), ENT_QUOTES, 'UTF-8') ?>
+                        <?php elseif ($currentCategoryId > 0): ?>
+                            <?= htmlspecialchars($categoryMap[$currentCategoryId] ?? 'Files', ENT_QUOTES, 'UTF-8') ?>
+                        <?php else: ?>
+                            All Files
+                        <?php endif; ?>
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'grid'])) ?>" class="btn <?= $viewMode === 'grid' ? 'btn-primary' : 'btn-outline-primary' ?>">
+                            <i class="fas fa-th"></i>
+                        </a>
+                        <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'list'])) ?>" class="btn <?= $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary' ?>">
+                            <i class="fas fa-list"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <?php if ($cloudError): ?>
+                        <div class="alert alert-warning">Cloud error: <?= htmlspecialchars($cloudError, ENT_QUOTES, 'UTF-8') ?></div>
+                    <?php endif; ?>
+
+<?php
+                    $displayFiles = [];
+                    
+                    $isCloudView = isset($_GET['cloud_folder']) && $webbycloudConnected;
+
+                    if ($isCloudView) {
+                        $displayFiles = $cloudFiles;
+                    } else {
+                        $key = $currentCategoryId;
+                        $displayFiles = $localFiles[$key] ?? [];
+                        if ($currentCategoryId === 0) {
+                            foreach ($localFiles as $catFiles) {
+                                $displayFiles = array_merge($displayFiles, $catFiles);
+                            }
+                        }
+                    }
+
+                    // Add breadcrumb for cloud navigation
+                    if ($currentCloudFolder !== '' && $webbycloudConnected): ?>
+                    <div class="mb-3">
+                        <a href="/files?cloud_folder=" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to WebbyCloud
+                        </a>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($currentCloudFolder !== '' && !$webbycloudConnected): ?>
+                        <div class="alert alert-info">
+                            <a href="/settings?page=connects">Connect WebbyCloud</a> to access cloud files.
+                        </div>
+                    <?php elseif (empty($displayFiles)): ?>
+                        <p class="text-muted">No files found.</p>
+                    <?php elseif ($viewMode === 'grid'): ?>
+                        <div class="row g-3">
+                            <?php foreach ($displayFiles as $file): $msgType = strtolower($file['type'] ?? 'document'); $mediaTypeField = strtolower($file['media_type'] ?? ''); $mediaType = ($mediaTypeField && $mediaTypeField !== $msgType) ? $mediaTypeField : $msgType; ?>
+                            <?php $isFolder = $isCloudView && ($file['type'] ?? '') === 'folder'; ?>
+                            <?php $rawPath = (string) ($file['path'] ?? ''); $resolvedPath = $isCloudView && $cloudBaseUrl !== '' ? $cloudBaseUrl . $rawPath : $rawPath; ?>
+                            <?php $filePath = htmlspecialchars($resolvedPath, ENT_QUOTES, 'UTF-8'); $fileName = htmlspecialchars($file['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <?php if ($isFolder): ?>
+                                <a class="card h-100 text-center p-3 d-flex flex-column text-decoration-none" href="/files?<?= http_build_query(array_merge($_GET, ['cloud_folder' => $rawPath])) ?>">
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas fa-folder fa-3x text-warning"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate text-dark"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? '-', ENT_QUOTES, 'UTF-8') ?></small>
+                                </a>
+                                <?php elseif (in_array($msgType, ['image', 'photo']) || in_array($mediaType, ['image', 'photo'])): ?>
+                                <div class="card h-100 text-center p-3 d-flex flex-column file-card" style="cursor:pointer" data-src="<?= $filePath ?>" data-type="image">
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas fa-image fa-3x text-success"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? ($file['created_at'] ?? '' ), ENT_QUOTES, 'UTF-8') ?></small>
+                                </div>
+                                <?php elseif ($msgType === 'document'): ?>
+                                <?php $isPdf = strpos($mediaType, 'pdf') !== false; ?>
+                                <div class="card h-100 text-center p-3 d-flex flex-column <?= $isPdf ? 'file-card' : '' ?>" <?= $isPdf ? 'style="cursor:pointer" data-src="'.$filePath.'" data-type="pdf"' : '' ?>>
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas <?= $isPdf ? 'fa-file-pdf' : 'fa-file' ?> fa-3x <?= $isPdf ? 'text-danger' : 'text-secondary' ?>"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? ($file['created_at'] ?? '' ), ENT_QUOTES, 'UTF-8') ?></small>
+                                </div>
+                                <?php elseif ($msgType === 'video' || $mediaType === 'video'): ?>
+                                <div class="card h-100 text-center p-3 d-flex flex-column">
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas fa-video fa-3x text-danger"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? ($file['created_at'] ?? '' ), ENT_QUOTES, 'UTF-8') ?></small>
+                                </div>
+                                <?php elseif ($msgType === 'audio'): ?>
+                                <div class="card h-100 text-center p-3 d-flex flex-column">
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas fa-music fa-3x text-info"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? ($file['created_at'] ?? '' ), ENT_QUOTES, 'UTF-8') ?></small>
+                                </div>
+                                <?php else: ?>
+                                <div class="card h-100 text-center p-3 d-flex flex-column">
+                                    <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
+                                        <i class="fas fa-file fa-3x text-secondary"></i>
+                                    </div>
+                                    <p class="small mb-1 text-truncate"><?= $fileName ?></p>
+                                    <small class="text-muted"><?= htmlspecialchars($file['modified'] ?? ($file['created_at'] ?? '' ), ENT_QUOTES, 'UTF-8') ?></small>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Date</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                            <?php foreach ($displayFiles as $file): ?>
+                                    <?php $msgType = strtolower($file['type'] ?? 'document'); $mediaTypeField = strtolower($file['media_type'] ?? ''); $mediaType = ($mediaTypeField && $mediaTypeField !== $msgType) ? $mediaTypeField : $msgType; ?>
+                                    <?php $isFolder = $isCloudView && ($file['type'] ?? '') === 'folder'; ?>
+                                    <?php $rawPath = (string) ($file['path'] ?? ''); $resolvedPath = $isCloudView && $cloudBaseUrl !== '' ? $cloudBaseUrl . $rawPath : $rawPath; ?>
+                                    <?php $filePath = htmlspecialchars($resolvedPath, ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php if ($isFolder): ?>
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-folder text-warning me-1"></i>
+                                            <a href="/files?<?= http_build_query(array_merge($_GET, ['cloud_folder' => $rawPath])) ?>" class="text-decoration-none">
+                                                <?= htmlspecialchars($file['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>
+                                            </a>
+                                        </td>
+                                        <td>folder</td>
+                                        <td><?= htmlspecialchars(substr($file['modified'] ?? '-', 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td></td>
+                                    </tr>
+                                    <?php elseif (in_array($msgType, ['image', 'photo']) || in_array($mediaType, ['image', 'photo'])): ?>
+                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="image">
+                                        <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars($file['type'] ?? 'document', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars(substr($file['modified'] ?? ($file['created_at'] ?? '-'), 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <a href="<?= $filePath ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i></a>
+                                        </td>
+                                    </tr>
+                                    <?php elseif (in_array($msgType, ['document']) && $mediaType === 'application/pdf'): ?>
+                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="pdf">
+                                        <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars($file['type'] ?? 'document', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars(substr($file['modified'] ?? ($file['created_at'] ?? '-'), 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <a href="<?= $filePath ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i></a>
+                                        </td>
+                                    </tr>
+                                    <?php else: ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <?php if (in_array($msgType, ['video']) || in_array($mediaType, ['video'])): ?>
+                                            <i class="fas fa-video text-danger me-1"></i>
+                                            <?php elseif (in_array($msgType, ['audio']) || in_array($mediaType, ['audio'])): ?>
+                                            <i class="fas fa-music text-info me-1"></i>
+                                            <?php endif; ?>
+                                            <?= htmlspecialchars($file['type'] ?? 'document', ENT_QUOTES, 'UTF-8') ?>
+                                        </td>
+                                        <td><?= htmlspecialchars(substr($file['modified'] ?? ($file['created_at'] ?? '-'), 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <?php if (!empty($file['path'])): ?>
+                                            <a href="<?= htmlspecialchars($file['path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageModal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body p-0 position-relative">
+                    <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" style="z-index:1;"></button>
+                    <img id="imageModalSrc" src="" class="img-fluid w-100" style="max-height:85vh;object-fit:contain;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pdfModal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered modal-fullscreen">
+            <div class="modal-content bg-dark border-0">
+                <div class="modal-header border-0">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="pdfModalSrc" src="" class="w-100 h-100 border-0"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+        var pdfModal = new bootstrap.Modal(document.getElementById('pdfModal'));
+        
+        document.querySelectorAll('.file-card, .file-row').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                if (el.tagName === 'TR') {
+                    var link = el.querySelector('a');
+                    if (link && link.contains(e.target)) return;
+                }
+                var type = this.getAttribute('data-type');
+                var src = this.getAttribute('data-src');
+                if (type === 'image') {
+                    document.getElementById('imageModalSrc').src = src;
+                    imageModal.show();
+                } else if (type === 'pdf') {
+                    document.getElementById('pdfModalSrc').src = src;
+                    pdfModal.show();
+                }
+            });
+        });
+    });
+    </script>
+    <?php
+    app_render_dashboard_end();
+    app_render_footer();
+}
+
 function app_page_welcome(): void
 {
     app_require_auth();
@@ -344,6 +1062,13 @@ function app_page_settings(): void
     if (!empty($passwordLastChangedAt) && strtotime((string) $passwordLastChangedAt) !== false) {
         $lastPasswordChangedLabel = date('M d, Y', strtotime((string) $passwordLastChangedAt));
     }
+    $webbycloud = $settings['webbycloud'] ?? [];
+    if (!is_array($webbycloud)) {
+        $webbycloud = [];
+    }
+    $webbycloudConnected = !empty($webbycloud['connected']);
+    $webbycloudEmail = (string) ($webbycloud['email'] ?? '');
+    $webbycloudDisplayName = (string) ($webbycloud['display_name'] ?? '');
     $issuer = 'ERP Ezy Chat';
     $accountLabel = $effectiveUser['email'] ?? 'user';
     $otpAuthUrl = '';
@@ -356,10 +1081,34 @@ function app_page_settings(): void
     
     // Get current page from query parameter
     $currentPage = $_GET['page'] ?? 'account';
-    $validPages = ['account', 'global', 'category', 'security'];
+    $validPages = ['account', 'global', 'category', 'security', 'connects'];
     
-    if (!in_array($currentPage, $validPages)) {
+    if (!in_array($currentPage, $validPages, true)) {
         $currentPage = 'account';
+    }
+
+    switch ($currentPage) {
+        case 'security':
+            $pageTitle = 'Security';
+            $pageDescription = 'Protect your account with MFA and password controls';
+            break;
+        case 'global':
+            $pageTitle = 'Global Settings';
+            $pageDescription = 'Configure default currency and display settings';
+            break;
+        case 'category':
+            $pageTitle = 'Category Management';
+            $pageDescription = 'Manage your categories and group organization';
+            break;
+        case 'connects':
+            $pageTitle = 'Connects';
+            $pageDescription = 'Link external accounts and manage connections';
+            break;
+        case 'account':
+        default:
+            $pageTitle = 'Account Settings';
+            $pageDescription = 'Manage your account information and preferences';
+            break;
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -394,6 +1143,34 @@ function app_page_settings(): void
             }
 
             app_redirect('/settings?page=global');
+        }
+
+        if ($action === 'disconnect_webbycloud') {
+            if (isset($settings['webbycloud'])) {
+                unset($settings['webbycloud']);
+            }
+
+            try {
+                $encodedSettings = json_encode($settings);
+                if ($encodedSettings === false) {
+                    app_flash('error', 'Failed to disconnect WebbyCloud.');
+                    app_redirect('/settings?page=connects');
+                }
+
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt->execute([
+                    'settings' => $encodedSettings,
+                    'id' => $effectiveUserId
+                ]);
+                app_flash('success', 'WebbyCloud disconnected.');
+                app_log_audit('webbycloud_disconnect', [], $user);
+            } catch (Exception $e) {
+                app_log('Failed to disconnect WebbyCloud: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to disconnect WebbyCloud.');
+            }
+
+            app_redirect('/settings?page=connects');
         }
 
         if ($action === 'generate_mfa_secret') {
@@ -594,6 +1371,14 @@ function app_page_settings(): void
                                 <small class="text-muted">Organize messages and groups</small>
                             </div>
                         </a>
+                        <a href="/settings?page=connects" 
+                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'connects' ? 'active' : '' ?>">
+                            <i class="fas fa-plug me-3"></i>
+                            <div>
+                                <div class="fw-medium">Connects</div>
+                                <small class="text-muted">Link external accounts</small>
+                            </div>
+                        </a>
                     </div>
                 </div>
                 <div class="card-footer bg-white border-top-0 pt-0">
@@ -610,10 +1395,10 @@ function app_page_settings(): void
                 <div class="card mb-4">
                 <div class="card-header bg-white border-bottom-0">
                     <h4 class="mb-0">
-                        <?= $currentPage === 'account' ? 'Account Settings' : ($currentPage === 'security' ? 'Security' : ($currentPage === 'global' ? 'Global Settings' : 'Category Management')) ?>
+                        <?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?>
                     </h4>
                     <p class="text-muted mb-0">
-                        <?= $currentPage === 'account' ? 'Manage your account information and preferences' : ($currentPage === 'security' ? 'Protect your account with MFA and password controls' : ($currentPage === 'global' ? 'Configure default currency and display settings' : 'Manage your categories and group organization')) ?>
+                        <?= htmlspecialchars($pageDescription, ENT_QUOTES, 'UTF-8') ?>
                     </p>
                 </div>
                 <div class="card-body">
@@ -776,6 +1561,36 @@ function app_page_settings(): void
                                 </div>
                             </div>
                         </form>
+                    <?php elseif ($currentPage === 'connects'): ?>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">WebbyCloud (Nextcloud)</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <span class="badge <?= $webbycloudConnected ? 'bg-success' : 'bg-secondary' ?>">
+                                                <?= $webbycloudConnected ? 'Connected' : 'Not Connected' ?>
+                                            </span>
+                                            <?php if ($webbycloudConnected): ?>
+                                                <div class="text-muted small mt-2">
+                                                    Connected as <?= htmlspecialchars($webbycloudDisplayName !== '' ? $webbycloudDisplayName : $webbycloudEmail, ENT_QUOTES, 'UTF-8') ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <a href="/sso-connect" class="btn btn-primary">Connect Nextcloud</a>
+                                            <form method="post" action="/settings?page=connects">
+                                                <input type="hidden" name="settings_action" value="disconnect_webbycloud">
+                                                <button type="submit" class="btn btn-outline-danger" <?= $webbycloudConnected ? '' : 'disabled' ?>>Disconnect</button>
+                                            </form>
+                                        </div>
+                                        <small class="text-muted d-block mt-3">Use the same email address as your portal account.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     <?php else: ?>
                         <!-- Category Management Content -->
                         <div class="category-management">
@@ -4561,6 +5376,7 @@ function app_render_login_sasoft(): void
                     <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
                 </form>
                 <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
+                <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
             </div></div></div></div></div>
         </div>
     </div>
@@ -4694,6 +5510,7 @@ function app_render_login_softing(): void
                 <div class="row"><div class="col-lg-12"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
+            <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
         </div></div></div></div></div></div>
     </div>
     <?php
@@ -4824,6 +5641,7 @@ function app_render_login_anada(): void
                 <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
+            <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
         </div></div></div></div></div></div>
     </div>
     <?php

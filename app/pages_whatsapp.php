@@ -491,6 +491,14 @@ function app_page_groups(): void {
     $user = app_current_user();
     $effectiveUser = $user ? app_get_effective_user($user) : $user;
     $effectiveUserId = $effectiveUser['id'] ?? 0;
+    $settings = [];
+    if ($effectiveUser && !empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+    $includeUserNameOnChat = !empty($settings['include_user_name_on_chat']);
     
     app_render_head('WhatsApp Groups');
     app_render_dashboard_start($user);
@@ -899,6 +907,8 @@ function app_page_groups(): void {
     <script src="<?= htmlspecialchars(app_asset('js/realtime.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const includeUserNameOnChat = <?= $includeUserNameOnChat ? 'true' : 'false' ?>;
+        const currentUserName = <?= json_encode((string) ($user['name'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         // Session filter functionality
         const sessionFilter = document.getElementById('sessionFilter');
         if (sessionFilter) {
@@ -1096,19 +1106,23 @@ function app_page_groups(): void {
             document.getElementById('messageForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const input = document.getElementById('messageInput');
-                const message = input.value.trim();
-                
-                if (message) {
-                    // Append message immediately to chat bubble
-                    const tempMessageId = 'temp_' + Date.now();
-                    appendSentMessageToChat({
-                        id: tempMessageId,
-                        content: message,
-                        is_from_me: true,
-                        sender_name: 'You',
-                        timestamp: Date.now(),
-                        is_temp: true
-                    });
+            const message = input.value.trim();
+            
+            if (message) {
+                let outgoingMessage = message;
+                if (includeUserNameOnChat && currentUserName) {
+                    outgoingMessage = `${currentUserName}: ${message}`;
+                }
+                // Append message immediately to chat bubble
+                const tempMessageId = 'temp_' + Date.now();
+                appendSentMessageToChat({
+                    id: tempMessageId,
+                    content: outgoingMessage,
+                    is_from_me: true,
+                    sender_name: 'You',
+                    timestamp: Date.now(),
+                    is_temp: true
+                });
                     
                     // Clear input
                     input.value = '';
@@ -1117,7 +1131,7 @@ function app_page_groups(): void {
                     setMessageSendingState(true);
                     
                     try {
-                        const success = await sendMessage(selectedGroupId, message, tempMessageId);
+                    const success = await sendMessage(selectedGroupId, outgoingMessage, tempMessageId);
                         if (!success) {
                             // If send failed, remove the temporary message and release grey-out state
                             removeTempMessage(tempMessageId);

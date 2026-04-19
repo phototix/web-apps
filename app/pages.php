@@ -1001,6 +1001,7 @@ function app_page_settings(): void
         }
     }
     $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $includeUserNameOnChat = !empty($settings['include_user_name_on_chat']);
     $settings = [];
     if ($effectiveUser && !empty($effectiveUser['settings'])) {
         $decodedSettings = json_decode($effectiveUser['settings'], true);
@@ -1114,14 +1115,114 @@ function app_page_settings(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['settings_action'] ?? '');
 
+        if ($action === 'download_settings') {
+            $export = [
+                'exported_at' => date('c'),
+                'user' => [
+                    'id' => $effectiveUserId,
+                    'email' => $effectiveUser['email'] ?? '',
+                    'role' => $effectiveUser['role'] ?? ''
+                ],
+                'settings' => $settings
+            ];
+
+            $json = json_encode($export, JSON_PRETTY_PRINT);
+            if ($json === false) {
+                app_flash('error', 'Failed to prepare settings export.');
+                app_redirect('/settings?page=account');
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Disposition: attachment; filename="settings-' . $effectiveUserId . '.json"');
+            header('Content-Length: ' . strlen($json));
+            echo $json;
+            exit;
+        }
+
+        if ($action === 'delete_account') {
+            $role = $user['role'] ?? '';
+            if (!in_array($role, ['admin', 'superadmin'], true)) {
+                app_flash('error', 'Only admin accounts can be deleted here.');
+                app_redirect('/settings?page=account');
+            }
+
+            $currentPassword = (string) ($_POST['current_password'] ?? '');
+            $confirmText = trim((string) ($_POST['delete_confirm'] ?? ''));
+
+            if ($currentPassword === '') {
+                app_flash('error', 'Current password is required.');
+                app_redirect('/settings?page=account');
+            }
+
+            if ($confirmText !== 'DELETE') {
+                app_flash('error', 'Type DELETE to confirm account deletion.');
+                app_redirect('/settings?page=account');
+            }
+
+            try {
+                $db = app_db();
+                $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = :id');
+                $stmt->execute(['id' => $effectiveUserId]);
+                $row = $stmt->fetch();
+
+                if (!$row || !password_verify($currentPassword, $row['password_hash'] ?? '')) {
+                    app_flash('error', 'Current password is incorrect.');
+                    app_redirect('/settings?page=account');
+                }
+
+                require_once __DIR__ . '/whatsapp/sessions.php';
+
+                $stmt = $db->prepare('SELECT id FROM users WHERE parent_id = :parent_id');
+                $stmt->execute(['parent_id' => $effectiveUserId]);
+                $childIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
+                foreach ($childIds as $childId) {
+                    $childSessions = app_whatsapp_get_user_sessions($childId);
+                    foreach ($childSessions as $session) {
+                        app_whatsapp_delete_session((int) ($session['id'] ?? 0));
+                    }
+
+                    $stmt = $db->prepare('DELETE FROM users WHERE id = :id');
+                    $stmt->execute(['id' => $childId]);
+                }
+
+                $adminSessions = app_whatsapp_get_user_sessions($effectiveUserId);
+                foreach ($adminSessions as $session) {
+                    app_whatsapp_delete_session((int) ($session['id'] ?? 0));
+                }
+
+                $stmt = $db->prepare('DELETE FROM users WHERE id = :id');
+                $stmt->execute(['id' => $effectiveUserId]);
+
+                app_log_audit('delete_account', [
+                    'target_user_id' => $effectiveUserId,
+                    'deleted_child_users' => count($childIds)
+                ], $user);
+
+                app_logout_user();
+                app_redirect('/login?account_deleted=1');
+            } catch (Exception $e) {
+                app_log('Failed to delete account: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to delete account.');
+                app_redirect('/settings?page=account');
+            }
+        }
+
         if ($action === 'update_global_settings') {
             $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
+            $requestedIncludeUserName = strtolower(trim((string) ($_POST['include_user_name_on_chat'] ?? 'no')));
             if (!array_key_exists($requestedCurrency, $currencyOptions)) {
                 app_flash('error', 'Invalid currency selection.');
                 app_redirect('/settings?page=global');
             }
 
+            if (!in_array($requestedIncludeUserName, ['yes', 'no'], true)) {
+                app_flash('error', 'Invalid chat name setting.');
+                app_redirect('/settings?page=global');
+            }
+
             $settings['default_currency'] = $requestedCurrency;
+            $settings['include_user_name_on_chat'] = ($requestedIncludeUserName === 'yes');
 
             try {
                 $encodedSettings = json_encode($settings);
@@ -1452,6 +1553,50 @@ function app_page_settings(): void
                                 </div>
                             </div>
                         </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Export Settings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted">Download your current settings as a JSON file.</p>
+                                        <form method="post" action="/settings?page=account">
+                                            <input type="hidden" name="settings_action" value="download_settings">
+                                            <button type="submit" class="btn btn-outline-primary">
+                                                <i class="fas fa-download me-2"></i>Download Settings
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php if (in_array($user['role'] ?? '', ['admin', 'superadmin'], true)): ?>
+                                <div class="col-md-6">
+                                    <div class="card mb-3 border-danger">
+                                        <div class="card-header text-danger">
+                                            <h5 class="mb-0">Danger Zone</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted">Delete the admin account and all child users, sessions, and settings.</p>
+                                            <form method="post" action="/settings?page=account" onsubmit="return confirm('This will permanently delete your account and all associated data. Continue?');">
+                                                <input type="hidden" name="settings_action" value="delete_account">
+                                                <div class="mb-3">
+                                                    <label class="form-label" for="delete_current_password">Current Password</label>
+                                                    <input type="password" class="form-control" id="delete_current_password" name="current_password" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label" for="delete_confirm">Type DELETE to confirm</label>
+                                                    <input type="text" class="form-control" id="delete_confirm" name="delete_confirm" required>
+                                                </div>
+                                                <button type="submit" class="btn btn-danger">
+                                                    <i class="fas fa-trash-alt me-2"></i>Delete Account
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     <?php elseif ($currentPage === 'security'): ?>
                         <div class="row">
                             <div class="col-lg-6">
@@ -1559,6 +1704,24 @@ function app_page_settings(): void
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">Include User Name on Chat</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="include_user_name_on_chat">Add name to outgoing messages</label>
+                                                <select class="form-select" id="include_user_name_on_chat" name="include_user_name_on_chat">
+                                                    <option value="no" <?= !$includeUserNameOnChat ? 'selected' : '' ?>>No</option>
+                                                    <option value="yes" <?= $includeUserNameOnChat ? 'selected' : '' ?>>Yes</option>
+                                                </select>
+                                                <small class="text-muted">If enabled, your name is prefixed on messages sent in Groups.</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </form>
                     <?php elseif ($currentPage === 'connects'): ?>
@@ -1566,7 +1729,7 @@ function app_page_settings(): void
                             <div class="col-md-8">
                                 <div class="card mb-3">
                                     <div class="card-header">
-                                        <h5 class="mb-0">WebbyCloud (Nextcloud)</h5>
+                                            <h5 class="mb-0">WebbyCloud</h5>
                                     </div>
                                     <div class="card-body">
                                         <div class="mb-3">
@@ -1580,11 +1743,14 @@ function app_page_settings(): void
                                             <?php endif; ?>
                                         </div>
                                         <div class="d-flex flex-wrap gap-2">
-                                            <a href="/sso-connect" class="btn btn-primary">Connect Nextcloud</a>
-                                            <form method="post" action="/settings?page=connects">
-                                                <input type="hidden" name="settings_action" value="disconnect_webbycloud">
-                                                <button type="submit" class="btn btn-outline-danger" <?= $webbycloudConnected ? '' : 'disabled' ?>>Disconnect</button>
-                                            </form>
+                                            <?php if ($webbycloudConnected): ?>
+                                                <form method="post" action="/settings?page=connects">
+                                                    <input type="hidden" name="settings_action" value="disconnect_webbycloud">
+                                                    <button type="submit" class="btn btn-outline-danger">Disconnect</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <a href="/sso-connect" class="btn btn-primary">Connect WebbyCloud</a>
+                                            <?php endif; ?>
                                         </div>
                                         <small class="text-muted d-block mt-3">Use the same email address as your portal account.</small>
                                     </div>
@@ -2096,6 +2262,17 @@ function app_page_cases(): void
                                                                         <?= $isArchived ? 'Unarchive' : 'Archive' ?>
                                                                     </a>
                                                                 </li>
+                                                                <li><hr class="dropdown-divider"></li>
+                                                                <li>
+                                                                    <a class="dropdown-item group-schedule-summary" href="#"
+                                                                       data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-session-id="<?= $sessionId ?>"
+                                                                       data-session-name="<?= htmlspecialchars($group['session_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-group-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>">
+                                                                        <i class="fas fa-calendar-alt me-2"></i>
+                                                                        Set Schedule Summary
+                                                                    </a>
+                                                                </li>
                                                             </ul>
                                                         </div>
                                                     </div>
@@ -2188,6 +2365,7 @@ function app_page_cases(): void
     .folder-card {
         transition: all 0.2s ease;
         border: 1px solid #e9ecef;
+        overflow: visible;
     }
     
     .folder-card:hover {
@@ -2199,6 +2377,7 @@ function app_page_cases(): void
     .folder-card .card-body {
         display: flex;
         flex-direction: column;
+        overflow: visible;
     }
 
     .group-menu {
@@ -2207,6 +2386,19 @@ function app_page_cases(): void
 
     .group-menu:hover {
         text-decoration: none;
+    }
+
+    .folder-card .dropdown-menu {
+        z-index: 3001;
+    }
+
+    .folder-item {
+        position: relative;
+        z-index: 1;
+    }
+
+    .folder-item.dropdown-open {
+        z-index: 3000;
     }
     
     .folder-icon {
@@ -2575,6 +2767,72 @@ function app_page_cases(): void
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Summary Modal -->
+    <div class="modal fade" id="scheduleSummaryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="schedule-summary-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Set Schedule Summary</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="small text-muted mb-3" id="schedule-summary-target"></div>
+                        <input type="hidden" id="schedule-summary-group-id" name="group_id">
+                        <input type="hidden" id="schedule-summary-session-id" name="session_id">
+
+                        <div class="mb-3">
+                            <label for="schedule-summary-frequency" class="form-label">Frequency of Summary</label>
+                            <select class="form-select" id="schedule-summary-frequency" name="frequency" required>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="schedule-summary-time" class="form-label">Summary Time</label>
+                            <input type="time" class="form-control" id="schedule-summary-time" name="summary_time" required>
+                        </div>
+
+                        <div class="mb-3 d-none" id="schedule-summary-weekly">
+                            <label for="schedule-summary-weekday" class="form-label">Summary Day</label>
+                            <select class="form-select" id="schedule-summary-weekday" name="summary_weekday">
+                                <option value="">Select day</option>
+                                <option value="monday">Monday</option>
+                                <option value="tuesday">Tuesday</option>
+                                <option value="wednesday">Wednesday</option>
+                                <option value="thursday">Thursday</option>
+                                <option value="friday">Friday</option>
+                                <option value="saturday">Saturday</option>
+                                <option value="sunday">Sunday</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3 d-none" id="schedule-summary-monthly">
+                            <label for="schedule-summary-month-day" class="form-label">Summary Day</label>
+                            <select class="form-select" id="schedule-summary-month-day" name="summary_month_day">
+                                <option value="">Select day</option>
+                                <option value="1">1st of every month</option>
+                                <option value="15">15th of every month</option>
+                                <option value="end">End of every month</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="schedule-summary-prompt" class="form-label">Summary Prompt</label>
+                            <textarea class="form-control" id="schedule-summary-prompt" name="prompt" rows="4" placeholder="Describe how the summary should be written" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="schedule-summary-save">Save</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -3346,6 +3604,236 @@ function app_page_cases(): void
                     });
             });
         });
+
+        document.querySelectorAll('.folder-item .dropdown-toggle').forEach(toggle => {
+            const folderItem = toggle.closest('.folder-item');
+            if (!folderItem) {
+                return;
+            }
+
+            toggle.addEventListener('show.bs.dropdown', () => {
+                folderItem.classList.add('dropdown-open');
+            });
+
+            toggle.addEventListener('hidden.bs.dropdown', () => {
+                folderItem.classList.remove('dropdown-open');
+            });
+        });
+
+        const scheduleSummaryLinks = document.querySelectorAll('.group-schedule-summary');
+        const scheduleSummaryModalEl = document.getElementById('scheduleSummaryModal');
+        const scheduleSummaryForm = document.getElementById('schedule-summary-form');
+        const scheduleSummaryTarget = document.getElementById('schedule-summary-target');
+        const scheduleSummaryGroupId = document.getElementById('schedule-summary-group-id');
+        const scheduleSummarySessionId = document.getElementById('schedule-summary-session-id');
+        const scheduleSummaryFrequency = document.getElementById('schedule-summary-frequency');
+        const scheduleSummaryTime = document.getElementById('schedule-summary-time');
+        const scheduleSummaryWeekly = document.getElementById('schedule-summary-weekly');
+        const scheduleSummaryWeekday = document.getElementById('schedule-summary-weekday');
+        const scheduleSummaryMonthly = document.getElementById('schedule-summary-monthly');
+        const scheduleSummaryMonthDay = document.getElementById('schedule-summary-month-day');
+        const scheduleSummaryPrompt = document.getElementById('schedule-summary-prompt');
+        const scheduleSummarySaveButton = document.getElementById('schedule-summary-save');
+        const scheduleSummaryModal = scheduleSummaryModalEl ? new bootstrap.Modal(scheduleSummaryModalEl) : null;
+
+        const updateScheduleSummaryFields = () => {
+            if (!scheduleSummaryFrequency) {
+                return;
+            }
+
+            const frequency = scheduleSummaryFrequency.value;
+            if (scheduleSummaryWeekly) {
+                scheduleSummaryWeekly.classList.toggle('d-none', frequency !== 'weekly');
+            }
+            if (scheduleSummaryMonthly) {
+                scheduleSummaryMonthly.classList.toggle('d-none', frequency !== 'monthly');
+            }
+
+            if (frequency !== 'weekly' && scheduleSummaryWeekday) {
+                scheduleSummaryWeekday.value = '';
+            }
+
+            if (frequency !== 'monthly' && scheduleSummaryMonthDay) {
+                scheduleSummaryMonthDay.value = '';
+            }
+        };
+
+        scheduleSummaryLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                const groupId = this.getAttribute('data-group-id') || '';
+                const sessionId = this.getAttribute('data-session-id') || '';
+                const sessionName = this.getAttribute('data-session-name') || '';
+                const groupName = this.getAttribute('data-group-name') || '';
+
+                if (scheduleSummaryGroupId) {
+                    scheduleSummaryGroupId.value = groupId;
+                }
+                if (scheduleSummarySessionId) {
+                    scheduleSummarySessionId.value = sessionId;
+                }
+                if (scheduleSummaryFrequency) {
+                    scheduleSummaryFrequency.value = 'daily';
+                }
+                if (scheduleSummaryTime) {
+                    scheduleSummaryTime.value = '';
+                }
+                if (scheduleSummaryWeekday) {
+                    scheduleSummaryWeekday.value = '';
+                }
+                if (scheduleSummaryMonthDay) {
+                    scheduleSummaryMonthDay.value = '';
+                }
+                if (scheduleSummaryPrompt) {
+                    scheduleSummaryPrompt.value = '';
+                }
+                if (scheduleSummaryTarget) {
+                    const labelParts = [];
+                    if (groupName) {
+                        labelParts.push(groupName);
+                    }
+                    if (sessionName) {
+                        labelParts.push(sessionName);
+                    }
+                    scheduleSummaryTarget.textContent = labelParts.join(' - ');
+                }
+
+                if (scheduleSummaryModal) {
+                    updateScheduleSummaryFields();
+                    scheduleSummaryModal.show();
+                }
+            });
+        });
+
+        if (scheduleSummaryFrequency) {
+            scheduleSummaryFrequency.addEventListener('change', updateScheduleSummaryFields);
+        }
+
+        if (scheduleSummaryForm) {
+            scheduleSummaryForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const groupId = scheduleSummaryGroupId ? scheduleSummaryGroupId.value : '';
+                const sessionId = scheduleSummarySessionId ? scheduleSummarySessionId.value : '';
+                const frequency = scheduleSummaryFrequency ? scheduleSummaryFrequency.value : '';
+                const summaryTime = scheduleSummaryTime ? scheduleSummaryTime.value : '';
+                const prompt = scheduleSummaryPrompt ? scheduleSummaryPrompt.value : '';
+                const summaryWeekday = scheduleSummaryWeekday ? scheduleSummaryWeekday.value : '';
+                const summaryMonthDay = scheduleSummaryMonthDay ? scheduleSummaryMonthDay.value : '';
+
+                if (!groupId || !sessionId) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Missing group or session information.'
+                        });
+                    } else {
+                        alert('Missing group or session information.');
+                    }
+                    return;
+                }
+
+                if (frequency === 'weekly' && !summaryWeekday) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Please select a summary day.'
+                        });
+                    } else {
+                        alert('Please select a summary day.');
+                    }
+                    return;
+                }
+
+                if (!summaryTime) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Please select a summary time.'
+                        });
+                    } else {
+                        alert('Please select a summary time.');
+                    }
+                    return;
+                }
+
+                if (frequency === 'monthly' && !summaryMonthDay) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Please select a summary day.'
+                        });
+                    } else {
+                        alert('Please select a summary day.');
+                    }
+                    return;
+                }
+
+                if (scheduleSummarySaveButton) {
+                    scheduleSummarySaveButton.disabled = true;
+                    scheduleSummarySaveButton.textContent = 'Saving...';
+                }
+
+                fetch(`/api/whatsapp/groups/${encodeURIComponent(groupId)}/schedule-summary`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        frequency: frequency,
+                        summary_time: summaryTime,
+                        summary_weekday: summaryWeekday,
+                        summary_month_day: summaryMonthDay,
+                        prompt: prompt
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.message || 'Failed to save schedule summary');
+                        }
+
+                        if (window.Swal) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Saved',
+                                text: 'Schedule summary saved successfully.',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            alert('Schedule summary saved successfully.');
+                        }
+
+                        if (scheduleSummaryModal) {
+                            scheduleSummaryModal.hide();
+                        }
+                    })
+                    .catch(error => {
+                        if (window.Swal) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: error.message
+                            });
+                        } else {
+                            alert(error.message);
+                        }
+                    })
+                    .finally(() => {
+                        if (scheduleSummarySaveButton) {
+                            scheduleSummarySaveButton.disabled = false;
+                            scheduleSummarySaveButton.textContent = 'Save';
+                        }
+                    });
+            });
+        }
 
         updateSessionBadges();
         filterFoldersBySession('all');
@@ -4249,7 +4737,28 @@ function app_format_audit_details(array $entry): string
         $details[] = 'Group: ' . htmlspecialchars((string) $context['group_id'], ENT_QUOTES, 'UTF-8');
     }
     if (!empty($context['message_id'])) {
-        $details[] = 'Message ID: ' . (int) $context['message_id'];
+        $messageId = $context['message_id'];
+        if (is_numeric($messageId)) {
+            $details[] = 'Message ID: ' . (int) $messageId;
+        } else {
+            $details[] = 'Message ID: ' . htmlspecialchars((string) $messageId, ENT_QUOTES, 'UTF-8');
+        }
+    }
+    if (!empty($context['category_id'])) {
+        $details[] = 'Category ID: ' . (int) $context['category_id'];
+    }
+    if (!empty($context['category_name'])) {
+        $details[] = 'Category: ' . htmlspecialchars((string) $context['category_name'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['changed_fields']) && is_array($context['changed_fields'])) {
+        $fields = array_map('strval', $context['changed_fields']);
+        $details[] = 'Changed: ' . htmlspecialchars(implode(', ', $fields), ENT_QUOTES, 'UTF-8');
+    }
+    if (array_key_exists('has_media', $context)) {
+        $details[] = 'Has Media: ' . (!empty($context['has_media']) ? 'Yes' : 'No');
+    }
+    if (!empty($context['message_preview'])) {
+        $details[] = 'Message: ' . htmlspecialchars((string) $context['message_preview'], ENT_QUOTES, 'UTF-8');
     }
     if (!empty($context['target_user_id'])) {
         $details[] = 'User ID: ' . (int) $context['target_user_id'];
@@ -5376,7 +5885,7 @@ function app_render_login_sasoft(): void
                     <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
                 </form>
                 <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
-                <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
+                <div class="sign-up"><p>Sign in with <a href="/sso-connect">WebbyCloud</a></p></div>
             </div></div></div></div></div>
         </div>
     </div>
@@ -5510,7 +6019,7 @@ function app_render_login_softing(): void
                 <div class="row"><div class="col-lg-12"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
-            <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
+            <div class="sign-up"><p>Sign in with <a href="/sso-connect">WebbyCloud</a></p></div>
         </div></div></div></div></div></div>
     </div>
     <?php
@@ -5641,7 +6150,7 @@ function app_render_login_anada(): void
                 <div class="col-lg-12 col-md-12"><div class="row"><button type="submit">Login</button></div></div>
             </form>
             <div class="sign-up"><p>Don't have an account? <a href="/register">Sign up now</a></p></div>
-            <div class="sign-up"><p>Sign in with <a href="/sso-connect">Nextcloud</a></p></div>
+            <div class="sign-up"><p>Sign in with <a href="/sso-connect">WebbyCloud</a></p></div>
         </div></div></div></div></div></div>
     </div>
     <?php

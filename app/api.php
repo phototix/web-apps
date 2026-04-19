@@ -691,6 +691,100 @@ function api_whatsapp_set_group_status(): void {
     }
 }
 
+function api_whatsapp_set_group_schedule_summary(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $groupIdParam = api_get_query_param('id');
+    if (!$groupIdParam) {
+        api_validation_error(['id' => 'Group ID is required']);
+    }
+
+    $input = api_get_json_input();
+    $sessionId = (int) ($input['session_id'] ?? 0);
+    $frequency = strtolower(trim((string) ($input['frequency'] ?? '')));
+    $summaryTime = trim((string) ($input['summary_time'] ?? $input['summary_schedule'] ?? ''));
+    $summaryWeekday = strtolower(trim((string) ($input['summary_weekday'] ?? '')));
+    $summaryMonthDay = trim((string) ($input['summary_month_day'] ?? ''));
+    $prompt = trim((string) ($input['prompt'] ?? ''));
+
+    $errors = [];
+    if ($sessionId <= 0) {
+        $errors['session_id'] = 'Session ID is required';
+    }
+    if (!in_array($frequency, ['daily', 'weekly', 'monthly'], true)) {
+        $errors['frequency'] = 'Frequency must be daily, weekly, or monthly';
+    }
+    if ($summaryTime === '' || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $summaryTime)) {
+        $errors['summary_time'] = 'Summary time must be in HH:MM format';
+    }
+    if ($frequency === 'weekly') {
+        $validWeekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        if (!in_array($summaryWeekday, $validWeekdays, true)) {
+            $errors['summary_weekday'] = 'Summary day must be selected';
+        }
+    }
+    if ($frequency === 'monthly') {
+        $validMonthDays = ['1', '15', 'end'];
+        if (!in_array($summaryMonthDay, $validMonthDays, true)) {
+            $errors['summary_month_day'] = 'Summary day must be 1st, 15th, or end of month';
+        }
+    }
+    if ($prompt === '') {
+        $errors['prompt'] = 'Summary prompt is required';
+    }
+    if (!empty($errors)) {
+        api_validation_error($errors);
+    }
+
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, (string) $groupIdParam);
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
+        api_forbidden('Group not found or access denied');
+    }
+
+    $sessionName = (string) ($group['whatsapp_session_name'] ?? $group['session_name'] ?? '');
+    $groupName = (string) ($group['name'] ?? '');
+
+    $scheduleData = [
+        'time' => $summaryTime,
+    ];
+    if ($frequency === 'weekly') {
+        $scheduleData['weekday'] = $summaryWeekday;
+    }
+    if ($frequency === 'monthly') {
+        $scheduleData['month_day'] = $summaryMonthDay;
+    }
+
+    $summarySchedule = json_encode($scheduleData, JSON_UNESCAPED_SLASHES);
+
+    try {
+        $success = app_db_upsert_group_summary([
+            'user_id' => $effectiveUserId,
+            'session_id' => $sessionId,
+            'session_name' => $sessionName,
+            'group_id' => (string) $groupIdParam,
+            'group_name' => $groupName,
+            'frequency' => $frequency,
+            'summary_schedule' => $summarySchedule,
+            'prompt' => $prompt
+        ]);
+
+        if ($success) {
+            api_success('Schedule summary saved', [
+                'group_id' => (string) $groupIdParam,
+                'session_id' => $sessionId,
+                'frequency' => $frequency,
+                'summary_schedule' => $summarySchedule
+            ]);
+        }
+
+        api_error('Failed to save schedule summary');
+    } catch (Exception $e) {
+        api_error('Failed to save schedule summary: ' . $e->getMessage());
+    }
+}
+
 function api_whatsapp_get_group_messages(): void {
     api_require_method('GET');
     $user = api_require_auth();
@@ -800,6 +894,17 @@ function api_whatsapp_send_message(): void {
     
     try {
         $result = app_whatsapp_send_message($sessionId, $groupId, $message, $mediaPath, $mediaType);
+        $preview = trim((string) $message);
+        if (strlen($preview) > 120) {
+            $preview = substr($preview, 0, 120) . '...';
+        }
+        app_log_audit('send_message', [
+            'session_id' => $sessionId,
+            'group_id' => $groupId,
+            'message_id' => $result['message_id'] ?? null,
+            'message_preview' => $preview,
+            'has_media' => !empty($mediaPath)
+        ], $user);
         api_success('Message sent', $result);
     } catch (Exception $e) {
         api_error($e->getMessage());
@@ -1287,6 +1392,12 @@ function api_whatsapp_update_category(): void {
         
         if ($success) {
             $category = app_whatsapp_get_category($categoryId);
+            app_log_audit('edit_category', [
+                'category_id' => $categoryId,
+                'category_name' => $category['name'] ?? '',
+                'parent_id' => $category['parent_id'] ?? null,
+                'changed_fields' => array_keys($data)
+            ], $user);
             api_success('Category updated', [
                 'category' => [
                     'id' => (int) $category['id'],
@@ -1318,9 +1429,18 @@ function api_whatsapp_delete_category(): void {
     
     try {
         $effectiveUserId = api_get_effective_user_id($user);
+        $category = app_whatsapp_get_category($categoryId);
+        if (!$category || ($category['user_id'] ?? null) !== $effectiveUserId) {
+            api_forbidden('Category not found or access denied');
+        }
         $success = app_whatsapp_delete_category($categoryId, $effectiveUserId);
         
         if ($success) {
+            app_log_audit('delete_category', [
+                'category_id' => $categoryId,
+                'category_name' => $category['name'] ?? '',
+                'parent_id' => $category['parent_id'] ?? null
+            ], $user);
             api_success('Category deleted');
         } else {
             api_error('Failed to delete category');

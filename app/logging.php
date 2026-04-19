@@ -48,6 +48,10 @@ function app_audit_action_labels(): array
         'create_session' => 'Create New Session',
         'delete_session' => 'Delete Session',
         'delete_user' => 'Delete User',
+        'delete_account' => 'Delete Account',
+        'edit_category' => 'Edit Category',
+        'delete_category' => 'Delete Category',
+        'send_message' => 'Send Message',
     ];
 }
 

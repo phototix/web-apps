@@ -327,3 +327,32 @@ function app_whatsapp_set_group_status(int $sessionId, string $groupId, string $
         'group_id' => $groupId
     ]);
 }
+
+function app_db_upsert_group_summary(array $data): bool {
+    $pdo = app_db();
+
+    $stmt = $pdo->prepare('
+        INSERT INTO whatsapp_group_summaries
+            (user_id, session_id, session_name, group_id, group_name, frequency, summary_schedule, prompt, created_at, updated_at)
+        VALUES
+            (:user_id, :session_id, :session_name, :group_id, :group_name, :frequency, :summary_schedule, :prompt, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            session_name = VALUES(session_name),
+            group_name = VALUES(group_name),
+            frequency = VALUES(frequency),
+            summary_schedule = VALUES(summary_schedule),
+            prompt = VALUES(prompt),
+            updated_at = NOW()
+    ');
+
+    return $stmt->execute([
+        'user_id' => $data['user_id'],
+        'session_id' => $data['session_id'],
+        'session_name' => $data['session_name'],
+        'group_id' => $data['group_id'],
+        'group_name' => $data['group_name'],
+        'frequency' => $data['frequency'],
+        'summary_schedule' => $data['summary_schedule'],
+        'prompt' => $data['prompt']
+    ]);
+}

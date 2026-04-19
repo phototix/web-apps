@@ -356,3 +356,48 @@ function app_db_upsert_group_summary(array $data): bool {
         'prompt' => $data['prompt']
     ]);
 }
+
+function app_db_delete_group_summary(int $userId, int $sessionId, string $groupId): bool {
+    $pdo = app_db();
+
+    $stmt = $pdo->prepare('
+        DELETE FROM whatsapp_group_summaries
+        WHERE user_id = :user_id AND session_id = :session_id AND group_id = :group_id
+    ');
+
+    return $stmt->execute([
+        'user_id' => $userId,
+        'session_id' => $sessionId,
+        'group_id' => $groupId
+    ]);
+}
+
+function app_db_update_group_summary_latest(int $userId, int $sessionId, string $groupId, string $latestSummary): bool {
+    $pdo = app_db();
+
+    $stmt = $pdo->prepare('
+        SELECT id FROM whatsapp_group_summaries
+        WHERE user_id = :user_id AND session_id = :session_id AND group_id = :group_id
+    ');
+    $stmt->execute([
+        'user_id' => $userId,
+        'session_id' => $sessionId,
+        'group_id' => $groupId
+    ]);
+
+    $existing = $stmt->fetch();
+    if (!$existing) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare('
+        UPDATE whatsapp_group_summaries
+        SET latest_summary = :latest_summary, updated_at = NOW()
+        WHERE id = :id
+    ');
+
+    return $stmt->execute([
+        'latest_summary' => $latestSummary,
+        'id' => $existing['id']
+    ]);
+}

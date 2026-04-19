@@ -1942,13 +1942,21 @@ function app_page_cases(): void
     try {
         // Get all groups with session info
         $stmt = $db->prepare("
-            SELECT wg.*, ws.session_name, ws.id as session_id
+            SELECT wg.*, ws.session_name, ws.id as session_id,
+                   wgs.frequency as summary_frequency,
+                   wgs.summary_schedule as summary_schedule,
+                   wgs.prompt as summary_prompt,
+                   wgs.latest_summary as summary_latest
             FROM whatsapp_groups wg
             LEFT JOIN whatsapp_sessions ws ON wg.session_id = ws.id
+            LEFT JOIN whatsapp_group_summaries wgs
+                ON wgs.session_id = wg.session_id
+                AND wgs.group_id = wg.group_id
+                AND wgs.user_id = ?
             WHERE ws.user_id = ?
             ORDER BY ws.session_name ASC, wg.name ASC
         ");
-        $stmt->execute([$effectiveUserId]);
+        $stmt->execute([$effectiveUserId, $effectiveUserId]);
         $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Get sessions with account info (like the /groups page does)
@@ -2171,6 +2179,30 @@ function app_page_cases(): void
                                             $groupChatId = '';
                                         }
 
+                                        $summaryFrequency = '';
+                                        $summaryTime = '';
+                                        $summaryWeekday = '';
+                                        $summaryMonthDay = '';
+                                        $summaryPrompt = '';
+                                        $summaryLatest = '';
+                                        $hasScheduleSummary = false;
+                                        if (!empty($group['summary_frequency']) && !empty($group['summary_schedule'])) {
+                                            $summaryFrequency = (string) $group['summary_frequency'];
+                                            $summaryPrompt = (string) ($group['summary_prompt'] ?? '');
+                                            $decodedSchedule = json_decode((string) $group['summary_schedule'], true);
+                                            if (is_array($decodedSchedule)) {
+                                                $summaryTime = (string) ($decodedSchedule['time'] ?? '');
+                                                $summaryWeekday = (string) ($decodedSchedule['weekday'] ?? '');
+                                                $summaryMonthDay = (string) ($decodedSchedule['month_day'] ?? '');
+                                            }
+                                            if ($summaryFrequency !== '' && $summaryTime !== '') {
+                                                $hasScheduleSummary = true;
+                                            }
+                                        }
+                                        if (!empty($group['summary_latest'])) {
+                                            $summaryLatest = (string) $group['summary_latest'];
+                                        }
+
                                         // Get message count safely
                                         $messageCount = 0;
                                         $lastActivity = 0;
@@ -2202,6 +2234,14 @@ function app_page_cases(): void
                                                         <div class="flex-grow-1">
                                                             <h6 class="mb-0 text-truncate" title="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>">
                                                                 <?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>
+                                                                <?php if ($summaryLatest !== ''): ?>
+                                                                    <a class="ms-2 text-muted group-summary-latest" href="#"
+                                                                       data-group-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-latest="<?= htmlspecialchars($summaryLatest, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       title="View latest summary">
+                                                                        <i class="fas fa-info-circle"></i>
+                                                                    </a>
+                                                                <?php endif; ?>
                                                             </h6>
                                                             <?php if ($groupChatId !== ''): ?>
                                                                 <small class="text-muted d-block" title="<?= htmlspecialchars($groupChatId, ENT_QUOTES, 'UTF-8') ?>">
@@ -2254,23 +2294,28 @@ function app_page_cases(): void
                                                             </button>
                                                             <ul class="dropdown-menu dropdown-menu-end">
                                                                 <li>
+                                                                    <a class="dropdown-item group-schedule-summary" href="#"
+                                                                       data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-session-id="<?= $sessionId ?>"
+                                                                       data-session-name="<?= htmlspecialchars($group['session_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-group-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-frequency="<?= htmlspecialchars($summaryFrequency, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-time="<?= htmlspecialchars($summaryTime, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-weekday="<?= htmlspecialchars($summaryWeekday, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-month-day="<?= htmlspecialchars($summaryMonthDay, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-prompt="<?= htmlspecialchars($summaryPrompt, ENT_QUOTES, 'UTF-8') ?>">
+                                                                        <i class="fas fa-calendar-alt me-2"></i>
+                                                                        <?= $hasScheduleSummary ? 'Edit Schedule Summary' : 'Set Schedule Summary' ?>
+                                                                    </a>
+                                                                </li>
+                                                                <li><hr class="dropdown-divider"></li>
+                                                                <li>
                                                                     <a class="dropdown-item group-archive-toggle" href="#"
                                                                        data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
                                                                        data-session-id="<?= $sessionId ?>"
                                                                        data-action="<?= $isArchived ? 'unarchive' : 'archive' ?>">
                                                                         <i class="fas <?= $isArchived ? 'fa-box-open' : 'fa-archive' ?> me-2"></i>
                                                                         <?= $isArchived ? 'Unarchive' : 'Archive' ?>
-                                                                    </a>
-                                                                </li>
-                                                                <li><hr class="dropdown-divider"></li>
-                                                                <li>
-                                                                    <a class="dropdown-item group-schedule-summary" href="#"
-                                                                       data-group-id="<?= htmlspecialchars($group['group_id'], ENT_QUOTES, 'UTF-8') ?>"
-                                                                       data-session-id="<?= $sessionId ?>"
-                                                                       data-session-name="<?= htmlspecialchars($group['session_name'], ENT_QUOTES, 'UTF-8') ?>"
-                                                                       data-group-name="<?= htmlspecialchars($group['name'], ENT_QUOTES, 'UTF-8') ?>">
-                                                                        <i class="fas fa-calendar-alt me-2"></i>
-                                                                        Set Schedule Summary
                                                                     </a>
                                                                 </li>
                                                             </ul>
@@ -2829,6 +2874,7 @@ function app_page_cases(): void
                         </div>
                     </div>
                     <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-danger me-auto d-none" id="schedule-summary-remove">Remove Schedule</button>
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary" id="schedule-summary-save">Save</button>
                     </div>
@@ -2837,6 +2883,25 @@ function app_page_cases(): void
         </div>
     </div>
     
+    <!-- Latest Summary Modal -->
+    <div class="modal fade" id="latestSummaryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Latest Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="latest-summary-target"></div>
+                    <pre class="mb-0" id="latest-summary-content"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
     const casesDefaultCurrency = <?= json_encode($defaultCurrency, JSON_UNESCAPED_SLASHES) ?>;
     const currentUserRole = <?= json_encode($user['role'] ?? '', JSON_UNESCAPED_SLASHES) ?>;
@@ -3634,7 +3699,15 @@ function app_page_cases(): void
         const scheduleSummaryMonthDay = document.getElementById('schedule-summary-month-day');
         const scheduleSummaryPrompt = document.getElementById('schedule-summary-prompt');
         const scheduleSummarySaveButton = document.getElementById('schedule-summary-save');
+        const scheduleSummaryRemoveButton = document.getElementById('schedule-summary-remove');
         const scheduleSummaryModal = scheduleSummaryModalEl ? new bootstrap.Modal(scheduleSummaryModalEl) : null;
+        let activeScheduleSummaryLink = null;
+
+        const latestSummaryLinks = document.querySelectorAll('.group-summary-latest');
+        const latestSummaryModalEl = document.getElementById('latestSummaryModal');
+        const latestSummaryTarget = document.getElementById('latest-summary-target');
+        const latestSummaryContent = document.getElementById('latest-summary-content');
+        const latestSummaryModal = latestSummaryModalEl ? new bootstrap.Modal(latestSummaryModalEl) : null;
 
         const updateScheduleSummaryFields = () => {
             if (!scheduleSummaryFrequency) {
@@ -3662,10 +3735,18 @@ function app_page_cases(): void
             link.addEventListener('click', function(e) {
                 e.preventDefault();
 
+                activeScheduleSummaryLink = this;
+
                 const groupId = this.getAttribute('data-group-id') || '';
                 const sessionId = this.getAttribute('data-session-id') || '';
                 const sessionName = this.getAttribute('data-session-name') || '';
                 const groupName = this.getAttribute('data-group-name') || '';
+                const existingFrequency = this.getAttribute('data-summary-frequency') || '';
+                const existingTime = this.getAttribute('data-summary-time') || '';
+                const existingWeekday = this.getAttribute('data-summary-weekday') || '';
+                const existingMonthDay = this.getAttribute('data-summary-month-day') || '';
+                const existingPrompt = this.getAttribute('data-summary-prompt') || '';
+                const hasExistingSchedule = existingFrequency !== '' || existingTime !== '' || existingWeekday !== '' || existingMonthDay !== '' || existingPrompt !== '';
 
                 if (scheduleSummaryGroupId) {
                     scheduleSummaryGroupId.value = groupId;
@@ -3674,19 +3755,22 @@ function app_page_cases(): void
                     scheduleSummarySessionId.value = sessionId;
                 }
                 if (scheduleSummaryFrequency) {
-                    scheduleSummaryFrequency.value = 'daily';
+                    scheduleSummaryFrequency.value = existingFrequency !== '' ? existingFrequency : 'daily';
                 }
                 if (scheduleSummaryTime) {
-                    scheduleSummaryTime.value = '';
+                    scheduleSummaryTime.value = hasExistingSchedule ? existingTime : '';
                 }
                 if (scheduleSummaryWeekday) {
-                    scheduleSummaryWeekday.value = '';
+                    scheduleSummaryWeekday.value = hasExistingSchedule ? existingWeekday : '';
                 }
                 if (scheduleSummaryMonthDay) {
-                    scheduleSummaryMonthDay.value = '';
+                    scheduleSummaryMonthDay.value = hasExistingSchedule ? existingMonthDay : '';
                 }
                 if (scheduleSummaryPrompt) {
-                    scheduleSummaryPrompt.value = '';
+                    scheduleSummaryPrompt.value = hasExistingSchedule ? existingPrompt : '';
+                }
+                if (scheduleSummaryRemoveButton) {
+                    scheduleSummaryRemoveButton.classList.toggle('d-none', !hasExistingSchedule);
                 }
                 if (scheduleSummaryTarget) {
                     const labelParts = [];
@@ -3702,6 +3786,26 @@ function app_page_cases(): void
                 if (scheduleSummaryModal) {
                     updateScheduleSummaryFields();
                     scheduleSummaryModal.show();
+                }
+            });
+        });
+
+        latestSummaryLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                const groupName = this.getAttribute('data-group-name') || '';
+                const latestSummary = this.getAttribute('data-summary-latest') || '';
+
+                if (latestSummaryTarget) {
+                    latestSummaryTarget.textContent = groupName;
+                }
+                if (latestSummaryContent) {
+                    latestSummaryContent.textContent = latestSummary || 'No summary available.';
+                }
+
+                if (latestSummaryModal) {
+                    latestSummaryModal.show();
                 }
             });
         });
@@ -3811,6 +3915,19 @@ function app_page_cases(): void
                             alert('Schedule summary saved successfully.');
                         }
 
+                        if (activeScheduleSummaryLink) {
+                            activeScheduleSummaryLink.setAttribute('data-summary-frequency', frequency);
+                            activeScheduleSummaryLink.setAttribute('data-summary-time', summaryTime);
+                            activeScheduleSummaryLink.setAttribute('data-summary-weekday', summaryWeekday);
+                            activeScheduleSummaryLink.setAttribute('data-summary-month-day', summaryMonthDay);
+                            activeScheduleSummaryLink.setAttribute('data-summary-prompt', prompt);
+                            activeScheduleSummaryLink.innerHTML = '<i class="fas fa-calendar-alt me-2"></i>Edit Schedule Summary';
+                        }
+
+                        if (scheduleSummaryRemoveButton) {
+                            scheduleSummaryRemoveButton.classList.remove('d-none');
+                        }
+
                         if (scheduleSummaryModal) {
                             scheduleSummaryModal.hide();
                         }
@@ -3832,6 +3949,125 @@ function app_page_cases(): void
                             scheduleSummarySaveButton.textContent = 'Save';
                         }
                     });
+            });
+        }
+
+        if (scheduleSummaryRemoveButton) {
+            scheduleSummaryRemoveButton.addEventListener('click', function() {
+                const groupId = scheduleSummaryGroupId ? scheduleSummaryGroupId.value : '';
+                const sessionId = scheduleSummarySessionId ? scheduleSummarySessionId.value : '';
+
+                if (!groupId || !sessionId) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Missing group or session information.'
+                        });
+                    } else {
+                        alert('Missing group or session information.');
+                    }
+                    return;
+                }
+
+                const confirmRemoval = () => {
+                    this.disabled = true;
+                    this.textContent = 'Removing...';
+
+                    fetch(`/api/whatsapp/groups/${encodeURIComponent(groupId)}/schedule-summary/delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId
+                        })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.success) {
+                                throw new Error(data.message || 'Failed to remove schedule summary');
+                            }
+
+                            if (activeScheduleSummaryLink) {
+                                activeScheduleSummaryLink.setAttribute('data-summary-frequency', '');
+                                activeScheduleSummaryLink.setAttribute('data-summary-time', '');
+                                activeScheduleSummaryLink.setAttribute('data-summary-weekday', '');
+                                activeScheduleSummaryLink.setAttribute('data-summary-month-day', '');
+                                activeScheduleSummaryLink.setAttribute('data-summary-prompt', '');
+                                activeScheduleSummaryLink.innerHTML = '<i class="fas fa-calendar-alt me-2"></i>Set Schedule Summary';
+                            }
+
+                            if (scheduleSummaryFrequency) {
+                                scheduleSummaryFrequency.value = 'daily';
+                            }
+                            if (scheduleSummaryTime) {
+                                scheduleSummaryTime.value = '';
+                            }
+                            if (scheduleSummaryWeekday) {
+                                scheduleSummaryWeekday.value = '';
+                            }
+                            if (scheduleSummaryMonthDay) {
+                                scheduleSummaryMonthDay.value = '';
+                            }
+                            if (scheduleSummaryPrompt) {
+                                scheduleSummaryPrompt.value = '';
+                            }
+                            updateScheduleSummaryFields();
+
+                            if (scheduleSummaryRemoveButton) {
+                                scheduleSummaryRemoveButton.classList.add('d-none');
+                            }
+
+                            if (window.Swal) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Removed',
+                                    text: 'Schedule summary removed successfully.',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                            } else {
+                                alert('Schedule summary removed successfully.');
+                            }
+
+                            if (scheduleSummaryModal) {
+                                scheduleSummaryModal.hide();
+                            }
+                        })
+                        .catch(error => {
+                            if (window.Swal) {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: error.message
+                                });
+                            } else {
+                                alert(error.message);
+                            }
+                        })
+                        .finally(() => {
+                            this.disabled = false;
+                            this.textContent = 'Remove Schedule';
+                        });
+                };
+
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Remove schedule?',
+                        text: 'This will delete the scheduled summary settings for this group.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Remove',
+                        confirmButtonColor: '#dc3545'
+                    }).then(result => {
+                        if (result.isConfirmed) {
+                            confirmRemoval();
+                        }
+                    });
+                } else if (confirm('Remove the scheduled summary settings for this group?')) {
+                    confirmRemoval();
+                }
             });
         }
 

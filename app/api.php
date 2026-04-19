@@ -785,6 +785,92 @@ function api_whatsapp_set_group_schedule_summary(): void {
     }
 }
 
+function api_whatsapp_delete_group_schedule_summary(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $groupIdParam = api_get_query_param('id');
+    if (!$groupIdParam) {
+        api_validation_error(['id' => 'Group ID is required']);
+    }
+
+    $input = api_get_json_input();
+    $sessionId = (int) ($input['session_id'] ?? 0);
+
+    $errors = [];
+    if ($sessionId <= 0) {
+        $errors['session_id'] = 'Session ID is required';
+    }
+    if (!empty($errors)) {
+        api_validation_error($errors);
+    }
+
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, (string) $groupIdParam);
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
+        api_forbidden('Group not found or access denied');
+    }
+
+    try {
+        $success = app_db_delete_group_summary($effectiveUserId, $sessionId, (string) $groupIdParam);
+        if ($success) {
+            api_success('Schedule summary removed', [
+                'group_id' => (string) $groupIdParam,
+                'session_id' => $sessionId
+            ]);
+        }
+
+        api_error('Failed to remove schedule summary');
+    } catch (Exception $e) {
+        api_error('Failed to remove schedule summary: ' . $e->getMessage());
+    }
+}
+
+function api_whatsapp_set_group_summary_latest(): void {
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $groupIdParam = api_get_query_param('id');
+    if (!$groupIdParam) {
+        api_validation_error(['id' => 'Group ID is required']);
+    }
+
+    $input = api_get_json_input();
+    $sessionId = (int) ($input['session_id'] ?? 0);
+    $latestSummary = trim((string) ($input['latest_summary'] ?? ''));
+
+    $errors = [];
+    if ($sessionId <= 0) {
+        $errors['session_id'] = 'Session ID is required';
+    }
+    if ($latestSummary === '') {
+        $errors['latest_summary'] = 'Latest summary is required';
+    }
+    if (!empty($errors)) {
+        api_validation_error($errors);
+    }
+
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, (string) $groupIdParam);
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || $group['user_id'] !== $effectiveUserId) {
+        api_forbidden('Group not found or access denied');
+    }
+
+    try {
+        $success = app_db_update_group_summary_latest($effectiveUserId, $sessionId, (string) $groupIdParam, $latestSummary);
+        if ($success) {
+            api_success('Latest summary saved', [
+                'group_id' => (string) $groupIdParam,
+                'session_id' => $sessionId
+            ]);
+        }
+
+        api_error('Failed to save latest summary');
+    } catch (Exception $e) {
+        api_error('Failed to save latest summary: ' . $e->getMessage());
+    }
+}
+
 function api_whatsapp_get_group_messages(): void {
     api_require_method('GET');
     $user = api_require_auth();

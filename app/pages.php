@@ -193,6 +193,7 @@ function app_page_webbycloud_callback(): void
     }
 
     $currentUser = app_current_user();
+    $isLoginFlow = $currentUser === null;
     $targetUser = null;
 
     if ($currentUser !== null) {
@@ -255,7 +256,8 @@ function app_page_webbycloud_callback(): void
 
     app_log_audit('webbycloud_connect', ['email' => $email], $targetUser);
     app_flash('success', 'WebbyCloud account connected.');
-    app_redirect('/settings?page=connects');
+    $redirectPath = $isLoginFlow ? '/' : '/settings?page=connects';
+    app_redirect($redirectPath);
 }
 
 function app_page_webbycloud_files(): void

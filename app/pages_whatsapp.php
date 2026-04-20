@@ -2180,26 +2180,32 @@ function app_page_reports(): void {
                 </button>
             </div>
             <div class="card-body" id="reports-options-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-5 g-3">
+                    <div class="col">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="report-option-image">
                             <label class="form-check-label" for="report-option-image">Enable Image Column</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="report-option-case" checked>
+                            <label class="form-check-label" for="report-option-case">Show Case Column</label>
+                        </div>
+                    </div>
+                    <div class="col">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="report-option-amount" checked>
                             <label class="form-check-label" for="report-option-amount">Show Amount Column</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="report-option-message" checked>
                             <label class="form-check-label" for="report-option-message">Show Caption Column</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="report-option-sender" checked>
                             <label class="form-check-label" for="report-option-sender">Show Sender Column</label>
@@ -2225,11 +2231,11 @@ function app_page_reports(): void {
                         <table class="table table-hover align-middle" id="reports-table">
                             <thead>
                                 <tr>
-                                    <th>Case</th>
+                                    <th data-column="case">Case</th>
                                     <th data-column="sender">Sender</th>
+                                    <th class="d-none" data-column="image">Image</th>
                                     <th>Data</th>
                                     <th data-column="message">Caption</th>
-                                    <th class="d-none" data-column="image">Image</th>
                                     <th data-column="amount">Amount</th>
                                     <th>Category</th>
                                     <th>Timestamp</th>
@@ -2257,14 +2263,8 @@ function app_page_reports(): void {
                                     }
                                     ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($message['group_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td data-column="case"><?= htmlspecialchars($message['group_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
                                         <td data-column="sender"><?= htmlspecialchars($senderLabel ?: 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
-                                        <td class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>">
-                                            <?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>
-                                        </td>
-                                        <td data-column="message" class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>">
-                                            <?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>
-                                        </td>
                                         <td class="d-none" data-column="image" data-export-value="<?= htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') ?>">
                                             <?php if (!empty($imageUrl)): ?>
                                                 <img src="<?= htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') ?>"
@@ -2276,6 +2276,12 @@ function app_page_reports(): void {
                                             <?php else: ?>
                                                 <span class="text-muted">-</span>
                                             <?php endif; ?>
+                                        </td>
+                                        <td class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars($messageData, ENT_QUOTES, 'UTF-8') ?>
+                                        </td>
+                                        <td data-column="message" class="text-truncate" style="max-width: 320px;" title="<?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars($messageValue, ENT_QUOTES, 'UTF-8') ?>
                                         </td>
                                         <td data-column="amount"><?= htmlspecialchars($amountValue, ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
@@ -2432,6 +2438,7 @@ function app_page_reports(): void {
 
             function initReportOptions() {
                 const imageToggle = document.getElementById('report-option-image');
+                const caseToggle = document.getElementById('report-option-case');
                 const amountToggle = document.getElementById('report-option-amount');
                 const messageToggle = document.getElementById('report-option-message');
                 const senderToggle = document.getElementById('report-option-sender');
@@ -2440,6 +2447,13 @@ function app_page_reports(): void {
                     setColumnVisibility('image', imageToggle.checked);
                     imageToggle.addEventListener('change', () => {
                         setColumnVisibility('image', imageToggle.checked);
+                    });
+                }
+
+                if (caseToggle) {
+                    setColumnVisibility('case', caseToggle.checked);
+                    caseToggle.addEventListener('change', () => {
+                        setColumnVisibility('case', caseToggle.checked);
                     });
                 }
 

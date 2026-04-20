@@ -8,6 +8,8 @@ class CategoryManager {
         this.categories = [];
         this.currentCategoryId = null;
         this.modal = null;
+        this.userRole = '';
+        this.canEditDelete = true;
         this.init();
     }
 
@@ -22,8 +24,21 @@ class CategoryManager {
 
     setup() {
         // Only run on category management page
-        if (!document.getElementById('category-management-container')) {
+        const container = document.getElementById('category-management-container');
+        if (!container) {
             return;
+        }
+
+        const datasetRole = container.dataset.userRole || '';
+        const globalRole = typeof window.currentUserRole === 'string' ? window.currentUserRole : '';
+        this.userRole = (datasetRole || globalRole).trim().toLowerCase();
+        this.canEditDelete = this.userRole !== 'users';
+
+        if (!this.canEditDelete) {
+            const addBtn = document.getElementById('addCategoryBtn');
+            if (addBtn) {
+                addBtn.classList.add('d-none');
+            }
         }
 
         console.log('Category Manager initialized');
@@ -152,6 +167,13 @@ class CategoryManager {
         const flattened = this.flattenCategoryTree(this.categories);
         
         container.innerHTML = this.getTableHTML(flattened);
+
+        if (!this.canEditDelete) {
+            const actionHeader = container.querySelector('th.category-actions');
+            if (actionHeader) {
+                actionHeader.classList.add('d-none');
+            }
+        }
         
         // Add event listeners to action buttons
         this.addTableEventListeners();
@@ -207,15 +229,21 @@ class CategoryManager {
     }
 
     getEmptyStateHTML() {
+        const descriptionText = this.canEditDelete
+            ? 'Create your first category to organize messages and groups.'
+            : 'No categories available.';
+        const actionHtml = this.canEditDelete
+            ? `<button class="btn btn-primary mt-2" id="addFirstCategoryBtn">
+                    <i class="fas fa-plus me-2"></i>Create First Category
+                </button>`
+            : '<div class="text-muted small mt-2">View-only access</div>';
         return `
             <div class="card">
                 <div class="card-body text-center py-5">
                     <i class="fas fa-tags fa-3x text-muted mb-3"></i>
                     <h5>No Categories Yet</h5>
-                    <p class="text-muted">Create your first category to organize messages and groups.</p>
-                    <button class="btn btn-primary mt-2" id="addFirstCategoryBtn">
-                        <i class="fas fa-plus me-2"></i>Create First Category
-                    </button>
+                    <p class="text-muted">${descriptionText}</p>
+                    ${actionHtml}
                 </div>
             </div>
         `;
@@ -244,6 +272,15 @@ class CategoryManager {
             // Format trigger content
             const triggerContent = this.formatTriggerContent(category.keywords, category.prompt);
             
+            const actionsHtml = this.canEditDelete ? `
+                        <button class="btn btn-sm btn-outline-primary me-1 edit-btn" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-btn" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    ` : '<span class="text-muted small">View only</span>';
+
             rowsHTML += `
                 <tr data-category-id="${category.id}">
                     <td>
@@ -257,13 +294,8 @@ class CategoryManager {
                     <td>${this.escapeHtml(category.description || '-')}</td>
                     <td>${triggerContent}</td>
                     <td>${parentChain}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary me-1 edit-btn" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger delete-btn" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <td class="text-end category-actions">
+                        ${actionsHtml}
                     </td>
                 </tr>
             `;
@@ -278,7 +310,7 @@ class CategoryManager {
                             <th width="20%">Description</th>
                             <th width="25%">Trigger</th>
                             <th width="15%">Parent Category</th>
-                            <th width="20%" class="text-end">Actions</th>
+                            <th width="20%" class="text-end category-actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -290,6 +322,9 @@ class CategoryManager {
     }
 
     addTableEventListeners() {
+        if (!this.canEditDelete) {
+            return;
+        }
         // Edit buttons
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -316,6 +351,10 @@ class CategoryManager {
     }
 
     async openModal(categoryId = null) {
+        if (!this.canEditDelete) {
+            this.showError('You do not have permission to manage categories.');
+            return;
+        }
         try {
             this.currentCategoryId = categoryId;
             
@@ -477,6 +516,10 @@ class CategoryManager {
     }
 
     async saveCategory() {
+        if (!this.canEditDelete) {
+            this.showError('You do not have permission to manage categories.');
+            return;
+        }
         const form = document.getElementById('categoryForm');
         const categoryId = document.getElementById('categoryId').value;
         const nameInput = document.getElementById('categoryName');
@@ -554,6 +597,10 @@ class CategoryManager {
     }
 
     async deleteCategory(categoryId) {
+        if (!this.canEditDelete) {
+            this.showError('You do not have permission to delete categories.');
+            return;
+        }
         // First get category details
         try {
             const response = await fetch(`/api/whatsapp/categories/${categoryId}`);
@@ -624,6 +671,10 @@ class CategoryManager {
     }
 
     editCategory(categoryId) {
+        if (!this.canEditDelete) {
+            this.showError('You do not have permission to edit categories.');
+            return;
+        }
         this.openModal(categoryId);
     }
 

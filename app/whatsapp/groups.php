@@ -333,15 +333,16 @@ function app_db_upsert_group_summary(array $data): bool {
 
     $stmt = $pdo->prepare('
         INSERT INTO whatsapp_group_summaries
-            (user_id, session_id, session_name, group_id, group_name, frequency, summary_schedule, prompt, created_at, updated_at)
+            (user_id, session_id, session_name, group_id, group_name, frequency, summary_schedule, prompt, include_non_assigned, created_at, updated_at)
         VALUES
-            (:user_id, :session_id, :session_name, :group_id, :group_name, :frequency, :summary_schedule, :prompt, NOW(), NOW())
+            (:user_id, :session_id, :session_name, :group_id, :group_name, :frequency, :summary_schedule, :prompt, :include_non_assigned, NOW(), NOW())
         ON DUPLICATE KEY UPDATE
             session_name = VALUES(session_name),
             group_name = VALUES(group_name),
             frequency = VALUES(frequency),
             summary_schedule = VALUES(summary_schedule),
             prompt = VALUES(prompt),
+            include_non_assigned = VALUES(include_non_assigned),
             updated_at = NOW()
     ');
 
@@ -353,7 +354,8 @@ function app_db_upsert_group_summary(array $data): bool {
         'group_name' => $data['group_name'],
         'frequency' => $data['frequency'],
         'summary_schedule' => $data['summary_schedule'],
-        'prompt' => $data['prompt']
+        'prompt' => $data['prompt'],
+        'include_non_assigned' => $data['include_non_assigned']
     ]);
 }
 

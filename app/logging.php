@@ -52,6 +52,9 @@ function app_audit_action_labels(): array
         'edit_category' => 'Edit Category',
         'delete_category' => 'Delete Category',
         'send_message' => 'Send Message',
+        'case_export_started' => 'Case Export Started',
+        'case_export_ready' => 'Case Export Ready',
+        'case_export_failed' => 'Case Export Failed',
     ];
 }
 

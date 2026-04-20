@@ -9,7 +9,9 @@ class RealtimeClient {
             new_message: [],
             session_status: [],
             group_update: [],
-            message_sent: []
+            message_sent: [],
+            case_export_ready: [],
+            case_export_failed: []
         };
     }
     

@@ -367,6 +367,7 @@ function app_register_user(string $name, string $email, string $password, string
     $trimmedName = trim($name);
     $trimmedEmail = strtolower(trim($email));
     $parentId = null;
+    $expiryDate = null;
 
     if ($trimmedName === '') {
         return ['success' => false, 'message' => 'Name is required.'];
@@ -402,19 +403,21 @@ function app_register_user(string $name, string $email, string $password, string
             return ['success' => false, 'message' => 'Invite code must be created by an administrator.'];
         }
     } else {
-        // No invite code - check if role is valid
-        if (!in_array($role, app_roles(), true)) {
-            return ['success' => false, 'message' => 'Invalid role selected.'];
-        }
+        // No invite code - enforce admin role and 30-day expiry
+        $role = 'admin';
+        $expiryDate = (new DateTimeImmutable('today'))
+            ->modify('+30 days')
+            ->format('Y-m-d');
     }
 
-    $statement = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, parent_id) VALUES (:name, :email, :password_hash, :role, :parent_id)');
+    $statement = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, parent_id, expiry_date) VALUES (:name, :email, :password_hash, :role, :parent_id, :expiry_date)');
     $statement->execute([
         'name' => $trimmedName,
         'email' => $trimmedEmail,
         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         'role' => $role,
         'parent_id' => $parentId,
+        'expiry_date' => $expiryDate,
     ]);
 
     $id = (int) $pdo->lastInsertId();

@@ -466,6 +466,7 @@ function app_page_files(): void
                 'path' => $msg['media_url'],
                 'type' => $msg['message_type'],
                 'media_type' => $msg['media_type'] ?? '',
+                'media_caption' => $msg['media_caption'] ?? '',
                 'created_at' => $msg['created_at'],
                 'sender' => $msg['sender_name'] ?? '',
                 'source' => 'local',
@@ -518,6 +519,7 @@ function app_page_files(): void
     $currentCategoryId = (int) ($_GET['category'] ?? 0);
     $currentCloudFolder = trim($_GET['cloud_folder'] ?? '');
     $viewMode = $_GET['view'] ?? 'grid';
+    $isCloudView = isset($_GET['cloud_folder']) && $webbycloudConnected;
 
     $currentCategoryIds = [];
     if ($currentCategoryId > 0 && !empty($categoryChildren)) {
@@ -609,13 +611,21 @@ function app_page_files(): void
                             All Files
                         <?php endif; ?>
                     </h5>
-                    <div class="btn-group btn-group-sm">
-                        <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'grid'])) ?>" class="btn <?= $viewMode === 'grid' ? 'btn-primary' : 'btn-outline-primary' ?>">
-                            <i class="fas fa-th"></i>
-                        </a>
-                        <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'list'])) ?>" class="btn <?= $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary' ?>">
-                            <i class="fas fa-list"></i>
-                        </a>
+                    <div class="d-flex align-items-center gap-2">
+                        <?php if ($currentCategoryId === 0 && !$isCloudView): ?>
+                            <div class="input-group input-group-sm" style="width: 220px;">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="files-grid-search" placeholder="Search files..." aria-label="Search files">
+                            </div>
+                        <?php endif; ?>
+                        <div class="btn-group btn-group-sm">
+                            <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'grid'])) ?>" class="btn <?= $viewMode === 'grid' ? 'btn-primary' : 'btn-outline-primary' ?>">
+                                <i class="fas fa-th"></i>
+                            </a>
+                            <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'list'])) ?>" class="btn <?= $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary' ?>">
+                                <i class="fas fa-list"></i>
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -626,17 +636,21 @@ function app_page_files(): void
 <?php
                     $displayFiles = [];
                     
-                    $isCloudView = isset($_GET['cloud_folder']) && $webbycloudConnected;
-
                     if ($isCloudView) {
                         $displayFiles = $cloudFiles;
                     } else {
-                        $key = $currentCategoryId;
-                        $displayFiles = $localFiles[$key] ?? [];
                         if ($currentCategoryId === 0) {
                             foreach ($localFiles as $catFiles) {
                                 $displayFiles = array_merge($displayFiles, $catFiles);
                             }
+                        } elseif (!empty($currentCategoryIds)) {
+                            foreach ($currentCategoryIds as $catId) {
+                                if (!empty($localFiles[$catId])) {
+                                    $displayFiles = array_merge($displayFiles, $localFiles[$catId]);
+                                }
+                            }
+                        } else {
+                            $displayFiles = $localFiles[$currentCategoryId] ?? [];
                         }
                     }
 
@@ -656,12 +670,26 @@ function app_page_files(): void
                     <?php elseif (empty($displayFiles)): ?>
                         <p class="text-muted">No files found.</p>
                     <?php elseif ($viewMode === 'grid'): ?>
-                        <div class="row g-3">
+                        <div class="row g-3" id="files-grid">
                             <?php foreach ($displayFiles as $file): $msgType = strtolower($file['type'] ?? 'document'); $mediaTypeField = strtolower($file['media_type'] ?? ''); $mediaType = ($mediaTypeField && $mediaTypeField !== $msgType) ? $mediaTypeField : $msgType; ?>
                             <?php $isFolder = $isCloudView && ($file['type'] ?? '') === 'folder'; ?>
                             <?php $rawPath = (string) ($file['path'] ?? ''); $resolvedPath = $isCloudView && $cloudBaseUrl !== '' ? $cloudBaseUrl . $rawPath : $rawPath; ?>
                             <?php $filePath = htmlspecialchars($resolvedPath, ENT_QUOTES, 'UTF-8'); $fileName = htmlspecialchars($file['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-                            <div class="col-6 col-md-4 col-lg-3">
+                            <?php
+                                $searchData = '';
+                                if (!$isCloudView) {
+                                    $searchParts = [
+                                        (string) ($file['name'] ?? ''),
+                                        (string) ($file['media_caption'] ?? ''),
+                                        (string) ($file['media_type'] ?? ''),
+                                        (string) ($file['type'] ?? ''),
+                                        (string) ($file['sender'] ?? ''),
+                                        (string) ($file['created_at'] ?? ''),
+                                    ];
+                                    $searchData = trim(implode(' ', array_filter($searchParts)));
+                                }
+                            ?>
+                            <div class="col-6 col-md-4 col-lg-3"<?= $searchData !== '' ? ' data-file-search="' . htmlspecialchars($searchData, ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
                                 <?php if ($isFolder): ?>
                                 <a class="card h-100 text-center p-3 d-flex flex-column text-decoration-none" href="/files?<?= http_build_query(array_merge($_GET, ['cloud_folder' => $rawPath])) ?>">
                                     <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
@@ -715,6 +743,11 @@ function app_page_files(): void
                             </div>
                             <?php endforeach; ?>
                         </div>
+                        <?php if ($currentCategoryId === 0 && !$isCloudView): ?>
+                            <div id="files-grid-empty" class="text-muted text-center mt-3" style="display:none;">
+                                No matches found.
+                            </div>
+                        <?php endif; ?>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -817,6 +850,7 @@ function app_page_files(): void
         </div>
     </div>
 
+    <script src="<?= htmlspecialchars(app_asset('js/realtime.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
@@ -839,6 +873,33 @@ function app_page_files(): void
                 }
             });
         });
+
+        var filesGridSearch = document.getElementById('files-grid-search');
+        if (filesGridSearch) {
+            var filesGrid = document.getElementById('files-grid');
+            var gridItems = filesGrid ? filesGrid.querySelectorAll('[data-file-search]') : [];
+            var emptyState = document.getElementById('files-grid-empty');
+
+            var filterFilesGrid = function() {
+                var query = filesGridSearch.value.toLowerCase().trim();
+                var visibleCount = 0;
+
+                gridItems.forEach(function(item) {
+                    var haystack = (item.getAttribute('data-file-search') || '').toLowerCase();
+                    var isMatch = query === '' || haystack.indexOf(query) !== -1;
+                    item.style.display = isMatch ? '' : 'none';
+                    if (isMatch) {
+                        visibleCount += 1;
+                    }
+                });
+
+                if (emptyState) {
+                    emptyState.style.display = (query !== '' && visibleCount === 0) ? '' : 'none';
+                }
+            };
+
+            filesGridSearch.addEventListener('input', filterFilesGrid);
+        }
     });
     </script>
     <?php
@@ -1085,6 +1146,9 @@ function app_page_settings(): void
     // Get current page from query parameter
     $currentPage = $_GET['page'] ?? 'account';
     $validPages = ['account', 'global', 'category', 'security', 'connects'];
+    if (($user['role'] ?? '') === 'users') {
+        $validPages = ['account', 'category', 'security'];
+    }
     
     if (!in_array($currentPage, $validPages, true)) {
         $currentPage = 'account';
@@ -1458,14 +1522,16 @@ function app_page_settings(): void
                                 <small class="text-muted">MFA and password</small>
                             </div>
                         </a>
-                        <a href="/settings?page=global" 
-                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'global' ? 'active' : '' ?>">
-                            <i class="fas fa-globe me-3"></i>
-                            <div>
-                                <div class="fw-medium">Global Settings</div>
-                                <small class="text-muted">Defaults for currency and display</small>
-                            </div>
-                        </a>
+                        <?php if (($user['role'] ?? '') !== 'users'): ?>
+                            <a href="/settings?page=global" 
+                               class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'global' ? 'active' : '' ?>">
+                                <i class="fas fa-globe me-3"></i>
+                                <div>
+                                    <div class="fw-medium">Global Settings</div>
+                                    <small class="text-muted">Defaults for currency and display</small>
+                                </div>
+                            </a>
+                        <?php endif; ?>
                         <a href="/settings?page=category" 
                            class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'category' ? 'active' : '' ?>">
                             <i class="fas fa-tags me-3"></i>
@@ -1474,14 +1540,16 @@ function app_page_settings(): void
                                 <small class="text-muted">Organize messages and groups</small>
                             </div>
                         </a>
-                        <a href="/settings?page=connects" 
-                           class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'connects' ? 'active' : '' ?>">
-                            <i class="fas fa-plug me-3"></i>
-                            <div>
-                                <div class="fw-medium">Connects</div>
-                                <small class="text-muted">Link external accounts</small>
-                            </div>
-                        </a>
+                        <?php if (($user['role'] ?? '') !== 'users'): ?>
+                            <a href="/settings?page=connects" 
+                               class="list-group-item list-group-item-action d-flex align-items-center <?= $currentPage === 'connects' ? 'active' : '' ?>">
+                                <i class="fas fa-plug me-3"></i>
+                                <div>
+                                    <div class="fw-medium">Connects</div>
+                                    <small class="text-muted">Link external accounts</small>
+                                </div>
+                            </a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-footer bg-white border-top-0 pt-0">
@@ -1767,12 +1835,14 @@ function app_page_settings(): void
                                     <h5 class="mb-0">Manage Categories</h5>
                                     <p class="text-muted mb-0">Create and organize hierarchical categories for messages and groups</p>
                                 </div>
-                                <button type="button" class="btn btn-primary" id="addCategoryBtn">
-                                    <i class="fas fa-plus me-2"></i>Add Category
-                                </button>
+                                <?php if (($user['role'] ?? '') !== 'users'): ?>
+                                    <button type="button" class="btn btn-primary" id="addCategoryBtn">
+                                        <i class="fas fa-plus me-2"></i>Add Category
+                                    </button>
+                                <?php endif; ?>
                             </div>
                             
-                            <div id="category-management-container">
+                            <div id="category-management-container" data-user-role="<?= htmlspecialchars($user['role'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                 <!-- JavaScript will load content here -->
                                 <div class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status">
@@ -1783,76 +1853,78 @@ function app_page_settings(): void
                             </div>
                         </div>
                         
-                        <!-- Category Modal (Create/Edit) -->
-                        <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="categoryModalLabel">Add Category</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <form id="categoryForm">
-                                            <input type="hidden" id="categoryId" name="id" value="">
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryName" class="form-label">Category Name <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control" id="categoryName" name="name" required maxlength="255">
-                                                <div class="invalid-feedback">Please enter a category name.</div>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryDescription" class="form-label">Description</label>
-                                                <textarea class="form-control" id="categoryDescription" name="description" rows="3" maxlength="1000"></textarea>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryKeywords" class="form-label">Keywords</label>
-                                                <textarea class="form-control" id="categoryKeywords" name="keywords" rows="2" maxlength="500" placeholder="Enter keywords separated by commas"></textarea>
-                                                <small class="text-muted">Keywords for categorizing messages (comma-separated)</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryPrompt" class="form-label">Prompt</label>
-                                                <textarea class="form-control" id="categoryPrompt" name="prompt" rows="3" maxlength="2000" placeholder="Enter AI prompt for this category"></textarea>
-                                                <small class="text-muted">AI prompt template for this category</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryColor" class="form-label">Color</label>
-                                                <div class="input-group">
-                                                    <input type="color" class="form-control form-control-color" id="categoryColor" name="color" value="#6c757d" title="Choose category color">
-                                                    <input type="text" class="form-control" id="categoryColorText" value="#6c757d" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
+                        <?php if (($user['role'] ?? '') !== 'users'): ?>
+                            <!-- Category Modal (Create/Edit) -->
+                            <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="categoryModalLabel">Add Category</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <form id="categoryForm">
+                                                <input type="hidden" id="categoryId" name="id" value="">
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryName" class="form-label">Category Name <span class="text-danger">*</span></label>
+                                                    <input type="text" class="form-control" id="categoryName" name="name" required maxlength="255">
+                                                    <div class="invalid-feedback">Please enter a category name.</div>
                                                 </div>
-                                                <small class="text-muted">Click the color box or enter HEX code (e.g., #6c757d)</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categoryParent" class="form-label">Parent Category</label>
-                                                <select class="form-select" id="categoryParent" name="parent_id">
-                                                    <option value="">None (Root Category)</option>
-                                                    <!-- Parent categories will be loaded via JavaScript -->
-                                                </select>
-                                                <small class="text-muted">Select a parent category to create a sub-category</small>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="categorySortOrder" class="form-label">Sort Order</label>
-                                                <input type="number" class="form-control" id="categorySortOrder" name="sort_order" value="0" min="0">
-                                                <small class="text-muted">Lower numbers appear first</small>
-                                            </div>
-                                        </form>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryDescription" class="form-label">Description</label>
+                                                    <textarea class="form-control" id="categoryDescription" name="description" rows="3" maxlength="1000"></textarea>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryKeywords" class="form-label">Keywords</label>
+                                                    <textarea class="form-control" id="categoryKeywords" name="keywords" rows="2" maxlength="500" placeholder="Enter keywords separated by commas"></textarea>
+                                                    <small class="text-muted">Keywords for categorizing messages (comma-separated)</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryPrompt" class="form-label">Prompt</label>
+                                                    <textarea class="form-control" id="categoryPrompt" name="prompt" rows="3" maxlength="2000" placeholder="Enter AI prompt for this category"></textarea>
+                                                    <small class="text-muted">AI prompt template for this category</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryColor" class="form-label">Color</label>
+                                                    <div class="input-group">
+                                                        <input type="color" class="form-control form-control-color" id="categoryColor" name="color" value="#6c757d" title="Choose category color">
+                                                        <input type="text" class="form-control" id="categoryColorText" value="#6c757d" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
+                                                    </div>
+                                                    <small class="text-muted">Click the color box or enter HEX code (e.g., #6c757d)</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categoryParent" class="form-label">Parent Category</label>
+                                                    <select class="form-select" id="categoryParent" name="parent_id">
+                                                        <option value="">None (Root Category)</option>
+                                                        <!-- Parent categories will be loaded via JavaScript -->
+                                                    </select>
+                                                    <small class="text-muted">Select a parent category to create a sub-category</small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label for="categorySortOrder" class="form-label">Sort Order</label>
+                                                    <input type="number" class="form-control" id="categorySortOrder" name="sort_order" value="0" min="0">
+                                                    <small class="text-muted">Lower numbers appear first</small>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        <?php endif; ?>
                         
                         <!-- Include Category Management JavaScript -->
-                        <script src="<?= htmlspecialchars(app_asset('js/category-management.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+                        <script src="<?= htmlspecialchars(app_asset('js/category-management.js') . '?v=20260420', ENT_QUOTES, 'UTF-8') ?>"></script>
                         
                         <style>
                         .color-badge {
@@ -1948,6 +2020,7 @@ function app_page_cases(): void
                    wgs.frequency as summary_frequency,
                    wgs.summary_schedule as summary_schedule,
                    wgs.prompt as summary_prompt,
+                   wgs.include_non_assigned as summary_include_non_assigned,
                    wgs.latest_summary as summary_latest
             FROM whatsapp_groups wg
             LEFT JOIN whatsapp_sessions ws ON wg.session_id = ws.id
@@ -2186,11 +2259,13 @@ function app_page_cases(): void
                                         $summaryWeekday = '';
                                         $summaryMonthDay = '';
                                         $summaryPrompt = '';
+                                        $summaryIncludeNonAssigned = 0;
                                         $summaryLatest = '';
                                         $hasScheduleSummary = false;
                                         if (!empty($group['summary_frequency']) && !empty($group['summary_schedule'])) {
                                             $summaryFrequency = (string) $group['summary_frequency'];
                                             $summaryPrompt = (string) ($group['summary_prompt'] ?? '');
+                                            $summaryIncludeNonAssigned = (int) ($group['summary_include_non_assigned'] ?? 0);
                                             $decodedSchedule = json_decode((string) $group['summary_schedule'], true);
                                             if (is_array($decodedSchedule)) {
                                                 $summaryTime = (string) ($decodedSchedule['time'] ?? '');
@@ -2305,7 +2380,8 @@ function app_page_cases(): void
                                                                        data-summary-time="<?= htmlspecialchars($summaryTime, ENT_QUOTES, 'UTF-8') ?>"
                                                                        data-summary-weekday="<?= htmlspecialchars($summaryWeekday, ENT_QUOTES, 'UTF-8') ?>"
                                                                        data-summary-month-day="<?= htmlspecialchars($summaryMonthDay, ENT_QUOTES, 'UTF-8') ?>"
-                                                                       data-summary-prompt="<?= htmlspecialchars($summaryPrompt, ENT_QUOTES, 'UTF-8') ?>">
+                                                                       data-summary-prompt="<?= htmlspecialchars($summaryPrompt, ENT_QUOTES, 'UTF-8') ?>"
+                                                                       data-summary-include-non-assigned="<?= (int) $summaryIncludeNonAssigned ?>">
                                                                         <i class="fas fa-calendar-alt me-2"></i>
                                                                         <?= $hasScheduleSummary ? 'Edit Schedule Summary' : 'Set Schedule Summary' ?>
                                                                     </a>
@@ -2376,6 +2452,9 @@ function app_page_cases(): void
                                             <div class="card-header bg-white">
                                                 <div class="d-flex align-items-center gap-3 flex-wrap">
                                                     <h6 class="mb-0 me-auto">Messages & Files</h6>
+                                                    <button class="btn btn-sm btn-outline-primary" type="button" id="case-download-btn">
+                                                        <i class="fas fa-download me-1"></i>Download Case
+                                                    </button>
                                                     <div class="input-group input-group-sm" style="max-width: 260px;">
                                                         <span class="input-group-text"><i class="fas fa-search"></i></span>
                                                         <input type="text" class="form-control" id="messages-files-search" placeholder="Search messages & files" aria-label="Search messages and files">
@@ -2846,6 +2925,14 @@ function app_page_cases(): void
                             <input type="time" class="form-control" id="schedule-summary-time" name="summary_time" required>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="schedule-summary-include-non-assigned" class="form-label">Include Non-assigned</label>
+                            <select class="form-select" id="schedule-summary-include-non-assigned" name="include_non_assigned" required>
+                                <option value="0">No</option>
+                                <option value="1">Yes</option>
+                            </select>
+                        </div>
+
                         <div class="mb-3 d-none" id="schedule-summary-weekly">
                             <label for="schedule-summary-weekday" class="form-label">Summary Day</label>
                             <select class="form-select" id="schedule-summary-weekday" name="summary_weekday">
@@ -2907,7 +2994,10 @@ function app_page_cases(): void
     <script>
     const casesDefaultCurrency = <?= json_encode($defaultCurrency, JSON_UNESCAPED_SLASHES) ?>;
     const currentUserRole = <?= json_encode($user['role'] ?? '', JSON_UNESCAPED_SLASHES) ?>;
+    const currentUserId = <?= json_encode((int) ($user['id'] ?? 0), JSON_UNESCAPED_SLASHES) ?>;
     const canDeleteMessages = ['admin', 'superadmin'].includes(currentUserRole);
+    const canManageCategories = currentUserRole !== 'users';
+    let currentCaseExport = null;
     // Global functions for category assignment
      function loadCategoriesForMessage(messageId, dropdownItem) {
          console.log('loadCategoriesForMessage called with messageId:', messageId, 'dropdownItem:', dropdownItem);
@@ -3086,6 +3176,134 @@ function app_page_cases(): void
             return formattedNumber;
         }
         return `${currencyCode} ${formattedNumber}`;
+    }
+
+    function setCurrentCaseExport(groupId, sessionId, groupName) {
+        if (!groupId || !sessionId) {
+            currentCaseExport = null;
+            const button = document.getElementById('case-download-btn');
+            if (button) {
+                button.disabled = true;
+            }
+            return;
+        }
+        currentCaseExport = {
+            groupId: groupId,
+            sessionId: sessionId,
+            groupName: groupName || 'Case'
+        };
+        const button = document.getElementById('case-download-btn');
+        if (button) {
+            button.disabled = false;
+        }
+    }
+
+    function startCaseExport() {
+        if (!currentCaseExport || !currentCaseExport.groupId || !currentCaseExport.sessionId) {
+            if (window.Swal) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Select a case',
+                    text: 'Open a case first to download the export.'
+                });
+            } else {
+                alert('Open a case first to download the export.');
+            }
+            return;
+        }
+
+        const button = document.getElementById('case-download-btn');
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Preparing...';
+        }
+
+        fetch(`/api/cases/${encodeURIComponent(currentCaseExport.groupId)}/export`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                session_id: currentCaseExport.sessionId
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.success) {
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Export started',
+                            text: 'We are preparing your case export. You will get a notification here when it is ready.'
+                        });
+                    } else {
+                        alert('Export started. You will get a notification when it is ready.');
+                    }
+                } else {
+                    const message = (data && data.message) ? data.message : 'Failed to start export.';
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Export failed',
+                            text: message
+                        });
+                    } else {
+                        alert(message);
+                    }
+                }
+            })
+            .catch(error => {
+                const message = error && error.message ? error.message : 'Failed to start export.';
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Export failed',
+                        text: message
+                    });
+                } else {
+                    alert(message);
+                }
+            })
+            .finally(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-download me-1"></i>Download Case';
+                }
+            });
+    }
+
+    function showCaseExportReady(data) {
+        const groupName = data && data.group_name ? data.group_name : 'Case';
+        const downloadUrl = data && data.download_url ? data.download_url : '';
+        if (downloadUrl === '') {
+            return;
+        }
+        const safeUrl = encodeURI(downloadUrl);
+
+        if (window.Swal) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Export ready',
+                html: `Your export for <strong>${escapeHtml(groupName)}</strong> is ready. <br><a href="${safeUrl}" class="btn btn-sm btn-primary mt-2">Download</a>`,
+                showConfirmButton: false
+            });
+        } else {
+            window.location.href = safeUrl;
+        }
+    }
+
+    function showCaseExportFailed(data) {
+        const groupName = data && data.group_name ? data.group_name : 'Case';
+        const errorMessage = data && data.error_message ? data.error_message : 'Export failed.';
+        if (window.Swal) {
+            Swal.fire({
+                icon: 'error',
+                title: `Export failed: ${groupName}`,
+                text: errorMessage
+            });
+        } else {
+            alert(`Export failed for ${groupName}: ${errorMessage}`);
+        }
     }
 
     function openMessagesFilesImageLightbox(trigger) {
@@ -3405,10 +3623,14 @@ function app_page_cases(): void
             btn.addEventListener('click', function() {
                 const groupId = this.getAttribute('data-group-id');
                 const groupName = this.getAttribute('data-group-name');
+                const folderItem = this.closest('.folder-item');
+                const sessionId = folderItem ? folderItem.getAttribute('data-session-id') : null;
                 
                 // Update UI
                 currentFolderName.textContent = groupName;
                 currentFolderInfo.textContent = `Group ID: ${groupId}`;
+
+                setCurrentCaseExport(groupId, sessionId, groupName);
                 
                 // Switch views
                 folderGridView.classList.add('d-none');
@@ -3422,7 +3644,14 @@ function app_page_cases(): void
         backToFoldersBtn.addEventListener('click', function() {
             folderContentView.classList.add('d-none');
             folderGridView.classList.remove('d-none');
+            setCurrentCaseExport(null, null, null);
         });
+
+        const caseDownloadBtn = document.getElementById('case-download-btn');
+        if (caseDownloadBtn) {
+            caseDownloadBtn.disabled = true;
+            caseDownloadBtn.addEventListener('click', startCaseExport);
+        }
         
         function applyMessagesFilesSearch() {
             const searchInput = document.getElementById('messages-files-search');
@@ -3700,6 +3929,7 @@ function app_page_cases(): void
         const scheduleSummaryMonthly = document.getElementById('schedule-summary-monthly');
         const scheduleSummaryMonthDay = document.getElementById('schedule-summary-month-day');
         const scheduleSummaryPrompt = document.getElementById('schedule-summary-prompt');
+        const scheduleSummaryIncludeNonAssigned = document.getElementById('schedule-summary-include-non-assigned');
         const scheduleSummarySaveButton = document.getElementById('schedule-summary-save');
         const scheduleSummaryRemoveButton = document.getElementById('schedule-summary-remove');
         const scheduleSummaryModal = scheduleSummaryModalEl ? new bootstrap.Modal(scheduleSummaryModalEl) : null;
@@ -3748,6 +3978,7 @@ function app_page_cases(): void
                 const existingWeekday = this.getAttribute('data-summary-weekday') || '';
                 const existingMonthDay = this.getAttribute('data-summary-month-day') || '';
                 const existingPrompt = this.getAttribute('data-summary-prompt') || '';
+                const existingIncludeNonAssigned = this.getAttribute('data-summary-include-non-assigned') || '0';
                 const hasExistingSchedule = existingFrequency !== '' || existingTime !== '' || existingWeekday !== '' || existingMonthDay !== '' || existingPrompt !== '';
 
                 if (scheduleSummaryGroupId) {
@@ -3770,6 +4001,9 @@ function app_page_cases(): void
                 }
                 if (scheduleSummaryPrompt) {
                     scheduleSummaryPrompt.value = hasExistingSchedule ? existingPrompt : '';
+                }
+                if (scheduleSummaryIncludeNonAssigned) {
+                    scheduleSummaryIncludeNonAssigned.value = hasExistingSchedule ? existingIncludeNonAssigned : '0';
                 }
                 if (scheduleSummaryRemoveButton) {
                     scheduleSummaryRemoveButton.classList.toggle('d-none', !hasExistingSchedule);
@@ -3827,6 +4061,7 @@ function app_page_cases(): void
                 const prompt = scheduleSummaryPrompt ? scheduleSummaryPrompt.value : '';
                 const summaryWeekday = scheduleSummaryWeekday ? scheduleSummaryWeekday.value : '';
                 const summaryMonthDay = scheduleSummaryMonthDay ? scheduleSummaryMonthDay.value : '';
+                const includeNonAssigned = scheduleSummaryIncludeNonAssigned ? scheduleSummaryIncludeNonAssigned.value : '0';
 
                 if (!groupId || !sessionId) {
                     if (window.Swal) {
@@ -3896,7 +4131,8 @@ function app_page_cases(): void
                         summary_time: summaryTime,
                         summary_weekday: summaryWeekday,
                         summary_month_day: summaryMonthDay,
-                        prompt: prompt
+                        prompt: prompt,
+                        include_non_assigned: includeNonAssigned
                     })
                 })
                     .then(response => response.json())
@@ -3923,6 +4159,7 @@ function app_page_cases(): void
                             activeScheduleSummaryLink.setAttribute('data-summary-weekday', summaryWeekday);
                             activeScheduleSummaryLink.setAttribute('data-summary-month-day', summaryMonthDay);
                             activeScheduleSummaryLink.setAttribute('data-summary-prompt', prompt);
+                            activeScheduleSummaryLink.setAttribute('data-summary-include-non-assigned', includeNonAssigned);
                             activeScheduleSummaryLink.innerHTML = '<i class="fas fa-calendar-alt me-2"></i>Edit Schedule Summary';
                         }
 
@@ -3997,6 +4234,7 @@ function app_page_cases(): void
                                 activeScheduleSummaryLink.setAttribute('data-summary-weekday', '');
                                 activeScheduleSummaryLink.setAttribute('data-summary-month-day', '');
                                 activeScheduleSummaryLink.setAttribute('data-summary-prompt', '');
+                                activeScheduleSummaryLink.setAttribute('data-summary-include-non-assigned', '0');
                                 activeScheduleSummaryLink.innerHTML = '<i class="fas fa-calendar-alt me-2"></i>Set Schedule Summary';
                             }
 
@@ -4014,6 +4252,9 @@ function app_page_cases(): void
                             }
                             if (scheduleSummaryPrompt) {
                                 scheduleSummaryPrompt.value = '';
+                            }
+                            if (scheduleSummaryIncludeNonAssigned) {
+                                scheduleSummaryIncludeNonAssigned.value = '0';
                             }
                             updateScheduleSummaryFields();
 
@@ -4075,6 +4316,13 @@ function app_page_cases(): void
 
         updateSessionBadges();
         filterFoldersBySession('all');
+
+        if (typeof RealtimeClient !== 'undefined' && currentUserId) {
+            const realtime = new RealtimeClient(currentUserId);
+            realtime.on('case_export_ready', showCaseExportReady);
+            realtime.on('case_export_failed', showCaseExportFailed);
+            realtime.startPolling();
+        }
         
         // Function to load folder content via AJAX (global scope)
         window.loadFolderContent = function(groupId) {
@@ -4106,6 +4354,8 @@ function app_page_cases(): void
             console.log('Found button:', folderElement);
             const sessionId = folderElement ? folderElement.closest('.folder-item').getAttribute('data-session-id') : null;
             console.log('Session ID found:', sessionId);
+            const groupName = folderElement ? folderElement.getAttribute('data-group-name') : (currentFolderName ? currentFolderName.textContent : '');
+            setCurrentCaseExport(groupId, sessionId, groupName);
 
             if (!sessionId) {
                 categoryTree.innerHTML = `
@@ -4211,16 +4461,19 @@ function app_page_cases(): void
                  // Store categories globally for use in message dropdowns
                  window.currentCategories = categories;
                  
-                 if (!categories || categories.length === 0) {
-                     categoryTree.innerHTML = `
-                         <div class="text-center text-muted py-4">
-                             <i class="fas fa-tags fa-2x mb-2"></i>
-                             <p>No categories yet</p>
-                             <a href="/settings?page=category" class="btn btn-sm btn-outline-primary" id="add-category-btn">
-                                 <i class="fas fa-plus me-1"></i> Add Category
-                             </a>
-                         </div>
-                     `;
+                if (!categories || categories.length === 0) {
+                    const addCategoryLink = canManageCategories
+                        ? `<a href="/settings?page=category" class="btn btn-sm btn-outline-primary" id="add-category-btn">
+                                <i class="fas fa-plus me-1"></i> Add Category
+                            </a>`
+                        : '';
+                    categoryTree.innerHTML = `
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-tags fa-2x mb-2"></i>
+                            <p>No categories yet</p>
+                            ${addCategoryLink}
+                        </div>
+                    `;
                      
                      // Update all message dropdowns with empty state
                      updateAllMessageDropdowns([]);
@@ -4230,13 +4483,15 @@ function app_page_cases(): void
                  let html = '<div class="category-tree">';
                  html += renderCategoryTreeItems(categories);
                  html += '</div>';
-                 html += `
-                     <div class="mt-3">
-                         <a href="/settings?page=category" class="btn btn-sm btn-outline-primary w-100" id="add-category-btn">
-                             <i class="fas fa-plus me-1"></i> Add Category
-                         </a>
-                     </div>
-                 `;
+                if (canManageCategories) {
+                    html += `
+                        <div class="mt-3">
+                            <a href="/settings?page=category" class="btn btn-sm btn-outline-primary w-100" id="add-category-btn">
+                                <i class="fas fa-plus me-1"></i> Add Category
+                            </a>
+                        </div>
+                    `;
+                }
                  
                  categoryTree.innerHTML = html;
                  
@@ -4974,6 +5229,12 @@ function app_format_audit_details(array $entry): string
     if (!empty($context['group_id'])) {
         $details[] = 'Group: ' . htmlspecialchars((string) $context['group_id'], ENT_QUOTES, 'UTF-8');
     }
+    if (!empty($context['group_name'])) {
+        $details[] = 'Group Name: ' . htmlspecialchars((string) $context['group_name'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['export_id'])) {
+        $details[] = 'Export ID: ' . (int) $context['export_id'];
+    }
     if (!empty($context['message_id'])) {
         $messageId = $context['message_id'];
         if (is_numeric($messageId)) {
@@ -4981,6 +5242,15 @@ function app_format_audit_details(array $entry): string
         } else {
             $details[] = 'Message ID: ' . htmlspecialchars((string) $messageId, ENT_QUOTES, 'UTF-8');
         }
+    }
+    if (!empty($context['zip_filename'])) {
+        $details[] = 'File: ' . htmlspecialchars((string) $context['zip_filename'], ENT_QUOTES, 'UTF-8');
+    }
+    if (!empty($context['file_size'])) {
+        $details[] = 'File Size: ' . number_format((float) $context['file_size']) . ' bytes';
+    }
+    if (!empty($context['error_message'])) {
+        $details[] = 'Error: ' . htmlspecialchars((string) $context['error_message'], ENT_QUOTES, 'UTF-8');
     }
     if (!empty($context['category_id'])) {
         $details[] = 'Category ID: ' . (int) $context['category_id'];

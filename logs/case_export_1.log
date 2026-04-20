@@ -1,0 +1,8 @@
+PHP Warning:  mkdir(): Permission denied in /var/www/html/erp.ezy.chat/scripts/export_case.php on line 22
+PHP Fatal error:  Uncaught PDOException: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'update_type' at row 1 in /var/www/html/erp.ezy.chat/scripts/export_case.php:125
+Stack trace:
+#0 /var/www/html/erp.ezy.chat/scripts/export_case.php(125): PDOStatement->execute()
+#1 /var/www/html/erp.ezy.chat/scripts/export_case.php(389): case_exports_insert_notification()
+#2 /var/www/html/erp.ezy.chat/scripts/export_case.php(411): case_exports_fail()
+#3 {main}
+  thrown in /var/www/html/erp.ezy.chat/scripts/export_case.php on line 125

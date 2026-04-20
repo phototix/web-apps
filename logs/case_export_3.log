@@ -1,0 +1,2 @@
+PHP Warning:  mkdir(): Permission denied in /var/www/html/erp.ezy.chat/scripts/export_case.php on line 22
+Case export failed: Failed to create directory: /var/www/html/erp.ezy.chat/storage/case-exports/tmp/export_3_20260420_150753

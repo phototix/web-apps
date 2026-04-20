@@ -21,3 +21,5 @@ Stack trace:
 #0 Command line code(14): PDOStatement->execute()
 #1 {main}
   thrown in Command line code on line 14
+[20-Apr-2026 13:36:58 UTC] Cleanup script error: SQLSTATE[HY000]: General error: 2014 Cannot execute queries while other unbuffered queries are active.  Consider using PDOStatement::fetchAll().  Alternatively, if your code is only ever going to run against mysql, you may enable query buffering by setting the PDO::MYSQL_ATTR_USE_BUFFERED_QUERY attribute.
+[20-Apr-2026 13:37:14 UTC] Cleanup script error: SQLSTATE[HY000]: General error: 2014 Cannot execute queries while other unbuffered queries are active.  Consider using PDOStatement::fetchAll().  Alternatively, if your code is only ever going to run against mysql, you may enable query buffering by setting the PDO::MYSQL_ATTR_USE_BUFFERED_QUERY attribute.

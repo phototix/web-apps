@@ -107,6 +107,8 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/categories/{id}/groups' => 'api_whatsapp_get_category_groups',
             '/api/pages' => 'api_pages_list',
             '/api/webbycloud/files' => 'api_webbycloud_files',
+            '/api/cases/exports/{id}/download' => 'api_cases_download_export',
+            '/api/cases/exports/notifications' => 'api_cases_export_notifications',
         ],
         'POST' => [
             '/api/auth/login' => 'api_auth_login',
@@ -132,6 +134,7 @@ function app_dispatch_api_request(string $method, string $path): void
             '/api/whatsapp/categories' => 'api_whatsapp_create_category',
             '/api/whatsapp/messages/{id}/category' => 'api_whatsapp_assign_message_category',
             '/api/whatsapp/groups/{id}/category' => 'api_whatsapp_assign_group_category',
+            '/api/cases/{id}/export' => 'api_cases_export',
         ],
         'PUT' => [
             '/api/whatsapp/categories/{id}' => 'api_whatsapp_update_category',

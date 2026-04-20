@@ -707,6 +707,7 @@ function api_whatsapp_set_group_schedule_summary(): void {
     $summaryWeekday = strtolower(trim((string) ($input['summary_weekday'] ?? '')));
     $summaryMonthDay = trim((string) ($input['summary_month_day'] ?? ''));
     $prompt = trim((string) ($input['prompt'] ?? ''));
+    $includeNonAssignedRaw = $input['include_non_assigned'] ?? 0;
 
     $errors = [];
     if ($sessionId <= 0) {
@@ -732,6 +733,10 @@ function api_whatsapp_set_group_schedule_summary(): void {
     }
     if ($prompt === '') {
         $errors['prompt'] = 'Summary prompt is required';
+    }
+    $includeNonAssigned = filter_var($includeNonAssignedRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($includeNonAssigned === null) {
+        $errors['include_non_assigned'] = 'Include Non-assigned must be yes or no';
     }
     if (!empty($errors)) {
         api_validation_error($errors);
@@ -767,7 +772,8 @@ function api_whatsapp_set_group_schedule_summary(): void {
             'group_name' => $groupName,
             'frequency' => $frequency,
             'summary_schedule' => $summarySchedule,
-            'prompt' => $prompt
+            'prompt' => $prompt,
+            'include_non_assigned' => $includeNonAssigned ? 1 : 0
         ]);
 
         if ($success) {
@@ -1468,6 +1474,10 @@ function api_whatsapp_create_category(): void {
 function api_whatsapp_update_category(): void {
     api_require_method('PUT');
     $user = api_require_auth();
+
+    if (($user['role'] ?? '') === 'users') {
+        api_forbidden('You do not have permission to edit categories');
+    }
     
     $categoryId = (int) api_get_query_param('id');
     $data = api_get_json_input();
@@ -1510,6 +1520,10 @@ function api_whatsapp_update_category(): void {
 function api_whatsapp_delete_category(): void {
     api_require_method('DELETE');
     $user = api_require_auth();
+
+    if (($user['role'] ?? '') === 'users') {
+        api_forbidden('You do not have permission to delete categories');
+    }
     
     $categoryId = (int) api_get_query_param('id');
     
@@ -2118,6 +2132,208 @@ function api_require_whatsapp_access(): array {
     }
     
     return $user;
+}
+
+function api_cases_export(): void
+{
+    api_require_method('POST');
+    $user = api_require_auth();
+
+    $groupIdParam = api_get_query_param('id');
+    if (!$groupIdParam) {
+        api_validation_error(['id' => 'Group ID is required']);
+    }
+
+    $input = api_get_json_input();
+    $sessionId = (int) ($input['session_id'] ?? 0);
+    if ($sessionId <= 0) {
+        api_validation_error(['session_id' => 'Session ID is required']);
+    }
+
+    $groupId = (string) $groupIdParam;
+    $group = app_whatsapp_get_group_by_session_and_id($sessionId, $groupId);
+    $effectiveUserId = api_get_effective_user_id($user);
+    if (!$group || (int) ($group['user_id'] ?? 0) !== $effectiveUserId) {
+        api_forbidden('Group not found or access denied');
+    }
+
+    $pdo = app_db();
+    $now = date('Y-m-d H:i:s');
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
+
+    $stmt = $pdo->prepare('
+        INSERT INTO case_exports
+        (user_id, session_id, group_id, group_name, status, created_at, expires_at)
+        VALUES (:user_id, :session_id, :group_id, :group_name, :status, :created_at, :expires_at)
+    ');
+    $stmt->execute([
+        'user_id' => $effectiveUserId,
+        'session_id' => $sessionId,
+        'group_id' => $groupId,
+        'group_name' => $group['name'] ?? null,
+        'status' => 'queued',
+        'created_at' => $now,
+        'expires_at' => $expiresAt,
+    ]);
+
+    $exportId = (int) $pdo->lastInsertId();
+
+    $deleteStmt = $pdo->prepare('
+        DELETE FROM realtime_updates
+        WHERE user_id = :user_id
+          AND entity_id = :entity_id
+          AND update_type IN ("case_export_ready", "case_export_failed")
+    ');
+    $deleteStmt->execute([
+        'user_id' => $effectiveUserId,
+        'entity_id' => $groupId,
+    ]);
+
+    app_log_audit('case_export_started', [
+        'export_id' => $exportId,
+        'group_id' => $groupId,
+        'group_name' => $group['name'] ?? '',
+        'session_id' => $sessionId,
+    ], $user);
+
+    $scriptPath = dirname(__DIR__) . '/scripts/export_case.php';
+    if (!is_file($scriptPath)) {
+        api_error('Export script not found on server.', [], 500);
+    }
+
+    if (!function_exists('exec')) {
+        api_error('Command execution is disabled on this server.', [], 500);
+    }
+
+    $logDir = dirname(__DIR__) . '/logs';
+    if (!is_dir($logDir)) {
+        if (!mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+            api_error('Log folder could not be created.', [], 500);
+        }
+    }
+
+    $logFile = $logDir . '/case_export_' . $exportId . '.log';
+    $command = 'php ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string) $exportId)
+        . ' > ' . escapeshellarg($logFile) . ' 2>&1 &';
+
+    $updateStmt = $pdo->prepare('UPDATE case_exports SET status = :status WHERE id = :id');
+    $updateStmt->execute(['status' => 'processing', 'id' => $exportId]);
+
+    exec($command, $output, $statusCode);
+    if ($statusCode !== 0) {
+        $errorMessage = 'Failed to start case export.';
+        $updateStmt = $pdo->prepare('UPDATE case_exports SET status = :status, error_message = :error WHERE id = :id');
+        $updateStmt->execute([
+            'status' => 'failed',
+            'error' => $errorMessage,
+            'id' => $exportId
+        ]);
+
+        app_log_audit('case_export_failed', [
+            'export_id' => $exportId,
+            'group_id' => $groupId,
+            'group_name' => $group['name'] ?? '',
+            'session_id' => $sessionId,
+            'error_message' => $errorMessage,
+        ], $user);
+
+        api_error($errorMessage, [], 500);
+    }
+
+    api_success('Case export started', [
+        'export_id' => $exportId,
+        'status' => 'processing',
+        'expires_at' => $expiresAt,
+    ]);
+}
+
+function api_cases_download_export(): void
+{
+    api_require_method('GET');
+    $user = api_require_auth();
+
+    $exportIdParam = api_get_query_param('id');
+    if (!$exportIdParam || !is_numeric($exportIdParam)) {
+        api_validation_error(['id' => 'Export ID is required']);
+    }
+
+    $exportId = (int) $exportIdParam;
+    $effectiveUserId = api_get_effective_user_id($user);
+    $pdo = app_db();
+    $stmt = $pdo->prepare('
+        SELECT * FROM case_exports
+        WHERE id = :id AND user_id = :user_id
+        LIMIT 1
+    ');
+    $stmt->execute(['id' => $exportId, 'user_id' => $effectiveUserId]);
+    $export = $stmt->fetch();
+
+    if (!$export) {
+        api_forbidden('Export not found or access denied');
+    }
+
+    if (($export['status'] ?? '') !== 'ready') {
+        api_error('Export is not ready yet.', [], 409);
+    }
+
+    $zipPath = (string) ($export['zip_path'] ?? '');
+    if ($zipPath === '' || !is_file($zipPath) || !is_readable($zipPath)) {
+        api_not_found('Export file not found');
+    }
+
+    $storageDir = realpath(dirname(__DIR__) . '/storage/case-exports');
+    $realZip = realpath($zipPath);
+    if ($storageDir && $realZip && strpos($realZip, $storageDir) !== 0) {
+        api_forbidden('Invalid export path');
+    }
+
+    $filename = (string) ($export['zip_filename'] ?? ('case-export-' . $exportId . '.zip'));
+
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+    header('Content-Length: ' . filesize($zipPath));
+    readfile($zipPath);
+    exit;
+}
+
+function api_cases_export_notifications(): void
+{
+    api_require_method('GET');
+    $user = api_require_auth();
+
+    $effectiveUserId = api_get_effective_user_id($user);
+    $pdo = app_db();
+    $stmt = $pdo->prepare('
+        SELECT id, update_type, entity_id, data, created_at
+        FROM realtime_updates
+        WHERE user_id = :user_id
+          AND update_type IN ("case_export_ready", "case_export_failed")
+          AND expires_at > NOW()
+        ORDER BY id DESC
+        LIMIT 3
+    ');
+    $stmt->execute(['user_id' => $effectiveUserId]);
+    $rows = $stmt->fetchAll();
+
+    $notifications = [];
+    foreach ($rows as $row) {
+        $data = json_decode((string) $row['data'], true);
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        $notifications[] = [
+            'id' => (int) $row['id'],
+            'update_type' => $row['update_type'],
+            'entity_id' => $row['entity_id'],
+            'data' => $data,
+            'created_at' => $row['created_at'],
+        ];
+    }
+
+    api_success('Notifications retrieved', [
+        'notifications' => $notifications,
+    ]);
 }
 
 function api_webbycloud_files(): void

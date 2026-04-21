@@ -612,7 +612,7 @@ function app_page_files(): void
                         <?php endif; ?>
                     </h5>
                     <div class="d-flex align-items-center gap-2">
-                        <?php if ($currentCategoryId === 0 && !$isCloudView): ?>
+                        <?php if (!$isCloudView): ?>
                             <div class="input-group input-group-sm" style="width: 220px;">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                                 <input type="text" class="form-control" id="files-grid-search" placeholder="Search files..." aria-label="Search files">
@@ -743,7 +743,7 @@ function app_page_files(): void
                             </div>
                             <?php endforeach; ?>
                         </div>
-                        <?php if ($currentCategoryId === 0 && !$isCloudView): ?>
+                        <?php if (!$isCloudView): ?>
                             <div id="files-grid-empty" class="text-muted text-center mt-3" style="display:none;">
                                 No matches found.
                             </div>
@@ -5785,8 +5785,8 @@ function app_page_pages(): void
                 <div class="card mb-4" id="pages-management" data-limit="<?= $pageLimit ?>" data-base-url="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <div>
-                            <h4 class="mb-0">Pages Sandbox</h4>
-                            <p class="text-muted mb-0">Manage and preview user-generated HTML, CSS, and JS.</p>
+                            <h4 class="mb-0">Pages Sandbox (Beta)</h4>
+                            <p class="text-muted mb-0">manage and preview AI Generated pages from reports</p>
                         </div>
                         <div class="text-end">
                             <div class="text-muted small"><?= $pageCount ?> / <?= $pageLimit ?> pages used</div>
@@ -5878,7 +5878,7 @@ function app_page_pages(): void
             </div>
         </div>
     <?php endif; ?>
-    <?php if (!$isAuthenticated && $token !== ''): ?>
+    <?php if (!$isAuthenticated && $token !== '' && (!$tokenIsValid || !$canViewPage)): ?>
         <div class="container py-4">
             <div class="alert alert-warning mb-0">Page not available.</div>
         </div>

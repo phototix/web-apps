@@ -2056,7 +2056,7 @@ function app_page_reports(): void {
                     <i class="fas fa-file-pdf me-1"></i> PDF
                 </button>
                 <button type="button" class="btn btn-outline-primary" id="generate-page">
-                    <i class="fas fa-magic me-1"></i> Generate Page with data
+                    <i class="fas fa-magic me-1"></i> Generate Page with data (Beta)
                 </button>
             </div>
         </div>
@@ -2304,7 +2304,7 @@ function app_page_reports(): void {
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Generate Page with data</h5>
+                    <h5 class="modal-title">Generate Page with data (Beta)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -2709,7 +2709,7 @@ function app_page_reports(): void {
                 generatePageButton.addEventListener('click', () => {
                     if (window.Swal) {
                         Swal.fire({
-                            title: 'Generate Page with data',
+                            title: 'Generate Page with data (Beta)',
                             input: 'textarea',
                             inputValue: getDefaultPrompt(),
                             inputAttributes: {

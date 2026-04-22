@@ -1172,7 +1172,8 @@ function api_whatsapp_incoming_message(): void
             'session_name' => $sessionName,
             'session_id' => $session['id'],
             'user_id' => (int) $session['user_id'],
-            'stored_at' => date('Y-m-d H:i:s')
+            'stored_at' => date('Y-m-d H:i:s'),
+            'mode' => app_whatsapp_get_file_handling_category_assignment((int) $session['id'])
         ];
         if (!empty($result['category_prompt'])) {
             $responseData['category_prompt'] = $result['category_prompt'];

@@ -210,6 +210,26 @@ function app_whatsapp_get_user_categories(int $userId, ?int $parentId = null, bo
     return $stmt->fetchAll();
 }
 
+function app_whatsapp_get_root_categories_for_session(int $sessionId, int $limit = 12): array {
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        SELECT c.id, c.name
+        FROM categories c
+        JOIN whatsapp_sessions ws ON c.user_id = ws.user_id
+        WHERE ws.id = :session_id
+          AND c.is_active = TRUE
+          AND c.parent_id IS NULL
+        ORDER BY c.sort_order ASC, c.name ASC
+        LIMIT :limit
+    ");
+
+    $stmt->bindValue('session_id', $sessionId, PDO::PARAM_INT);
+    $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+
+    return $stmt->fetchAll();
+}
+
 function app_whatsapp_get_category_tree(int $userId, ?string $whatsappGroupId = null, ?int $sessionId = null, ?int $groupId = null): array {
     $pdo = app_db();
     

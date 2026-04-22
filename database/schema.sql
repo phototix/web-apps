@@ -48,7 +48,7 @@ CREATE TABLE `group_messages` (
   `sender_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sender_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `message_type` enum('chat','image','video','audio','document','sticker','location','contact','poll','other') COLLATE utf8mb4_unicode_ci DEFAULT 'chat',
-  `content` text COLLATE utf8mb4_unicode_ci,
+  `content` longtext COLLATE utf8mb4_unicode_ci,
   `data` text COLLATE utf8mb4_unicode_ci,
   `media_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `media_caption` text COLLATE utf8mb4_unicode_ci,
@@ -74,6 +74,25 @@ CREATE TABLE `group_messages` (
   CONSTRAINT `group_messages_ibfk_1` FOREIGN KEY (`session_id`, `group_id`) REFERENCES `whatsapp_groups` (`session_id`, `group_id`) ON DELETE CASCADE,
   CONSTRAINT `group_messages_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=5871 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPRESSED;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `whatsapp_message_polls`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `whatsapp_message_polls` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` bigint unsigned NOT NULL,
+  `group_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_message_id` bigint unsigned NOT NULL,
+  `poll_message_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `poll_question` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `poll_options` json NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_poll_message` (`poll_message_id`),
+  KEY `idx_file_message` (`file_message_id`),
+  KEY `idx_session_group` (`session_id`,`group_id`),
+  CONSTRAINT `whatsapp_message_polls_ibfk_1` FOREIGN KEY (`file_message_id`) REFERENCES `group_messages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `group_messages_backup`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -198,6 +217,7 @@ CREATE TABLE `users` (
   `max_sessions` int DEFAULT '1',
   `expiry_date` date DEFAULT NULL,
   `settings` json DEFAULT NULL,
+  `file_handling_category_assignment` int NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `invited_by` (`invited_by`),
   KEY `idx_expiry_date` (`expiry_date`),
@@ -225,6 +245,7 @@ CREATE TABLE `users_backup_whatsapp` (
   `max_sessions` int DEFAULT '1',
   `expiry_date` date DEFAULT NULL,
   `settings` json DEFAULT NULL,
+  `file_handling_category_assignment` int NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `invited_by` (`invited_by`),
   KEY `idx_expiry_date` (`expiry_date`),

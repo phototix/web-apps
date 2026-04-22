@@ -485,13 +485,36 @@ function app_whatsapp_store_incoming_message(array $messageData): array
     $pdo = app_db();
 
     if (!isset($messageData['category_id'])) {
-        $messageData['category_id'] = app_whatsapp_detect_message_category(
-            (int) $messageData['session_id'],
-            (string) $messageData['message_type'],
-            (string) $messageData['content'],
-            (string) $messageData['media_caption'],
-            (string) $messageData['caption']
-        );
+        $sessionId = (int) $messageData['session_id'];
+        $messageType = strtolower(trim((string) $messageData['message_type']));
+        $fileHandlingMode = app_whatsapp_get_file_handling_category_assignment($sessionId);
+        $fileCaptionText = '';
+        if ($messageType !== 'chat') {
+            $fileCaptionText = trim((string) ($messageData['media_caption'] ?: $messageData['caption'] ?: $messageData['content']));
+        }
+
+        $shouldDetectCategory = true;
+        if ($messageType !== 'chat') {
+            if ($fileHandlingMode === 3) {
+                $shouldDetectCategory = false;
+            } elseif ($fileHandlingMode === 2) {
+                $shouldDetectCategory = false;
+            } elseif ($fileHandlingMode === 1 && $fileCaptionText === '') {
+                $shouldDetectCategory = false;
+            }
+        }
+
+        if ($shouldDetectCategory) {
+            $messageData['category_id'] = app_whatsapp_detect_message_category(
+                $sessionId,
+                (string) $messageData['message_type'],
+                (string) $messageData['content'],
+                (string) $messageData['media_caption'],
+                (string) $messageData['caption']
+            );
+        } else {
+            $messageData['category_id'] = null;
+        }
     }
     
     // Check if message already exists
@@ -601,6 +624,8 @@ function app_whatsapp_store_incoming_message(array $messageData): array
             (string) $messageData['message_id']
         );
     }
+
+    app_whatsapp_maybe_send_category_vote_poll($messageData, $messageId);
     
     // Update group's last message
     $preview = strlen($messageData['content']) > 50 ? substr($messageData['content'], 0, 47) . '...' : $messageData['content'];
@@ -715,6 +740,169 @@ function app_whatsapp_parse_keywords(string $keywords): array
     }
 
     return $cleaned;
+}
+
+function app_whatsapp_maybe_send_category_vote_poll(array $messageData, int $dbMessageId): void
+{
+    if (!empty($messageData['is_from_me'])) {
+        return;
+    }
+
+    $messageType = strtolower(trim((string) ($messageData['message_type'] ?? '')));
+    if ($messageType === 'chat' || $messageType === '') {
+        return;
+    }
+
+    $chatId = (string) ($messageData['chat_id'] ?? '');
+    if ($chatId === '' || !str_ends_with($chatId, '@g.us')) {
+        return;
+    }
+
+    $sessionId = (int) ($messageData['session_id'] ?? 0);
+    if ($sessionId <= 0) {
+        return;
+    }
+
+    $fileHandlingMode = app_whatsapp_get_file_handling_category_assignment($sessionId);
+    if ($fileHandlingMode === 3) {
+        return;
+    }
+
+    if ($fileHandlingMode !== 2) {
+        $captionText = trim((string) (($messageData['media_caption'] ?? '') ?: ($messageData['caption'] ?? '') ?: ($messageData['content'] ?? '')));
+        if ($captionText !== '') {
+            return;
+        }
+    }
+
+    $categories = app_whatsapp_get_root_categories_for_session($sessionId, 12);
+    if (empty($categories)) {
+        return;
+    }
+
+    $options = [];
+    foreach ($categories as $category) {
+        $name = trim((string) ($category['name'] ?? ''));
+        $id = (int) ($category['id'] ?? 0);
+        if ($name !== '' && $id > 0) {
+            $options[] = $name . ' (' . $id . ')';
+        }
+    }
+
+    if (empty($options)) {
+        return;
+    }
+
+    $question = 'Please choose';
+
+    try {
+        $pollMessageId = app_whatsapp_send_category_vote_poll(
+            $sessionId,
+            $chatId,
+            (string) ($messageData['message_id'] ?? ''),
+            $question,
+            $options
+        );
+
+        if ($pollMessageId) {
+            app_whatsapp_store_message_poll(
+                $sessionId,
+                $chatId,
+                $dbMessageId,
+                $pollMessageId,
+                $question,
+                $options
+            );
+        }
+    } catch (Exception $e) {
+        app_log('Failed to send category vote poll: ' . $e->getMessage(), 'WARNING', [
+            'session_id' => $sessionId,
+            'chat_id' => $chatId,
+            'message_id' => $messageData['message_id'] ?? ''
+        ]);
+    }
+}
+
+function app_whatsapp_get_file_handling_category_assignment(int $sessionId): int
+{
+    $session = app_whatsapp_get_session($sessionId);
+    if (!$session) {
+        return 1;
+    }
+
+    $userId = (int) ($session['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return 1;
+    }
+
+    $pdo = app_db();
+    $stmt = $pdo->prepare('SELECT file_handling_category_assignment FROM users WHERE id = :id');
+    $stmt->execute(['id' => $userId]);
+    $row = $stmt->fetch();
+    $mode = (int) ($row['file_handling_category_assignment'] ?? 1);
+
+    return in_array($mode, [1, 2, 3], true) ? $mode : 1;
+}
+
+function app_whatsapp_send_category_vote_poll(int $sessionId, string $chatId, string $replyToMessageId, string $question, array $options): ?string
+{
+    $session = app_whatsapp_get_session($sessionId);
+    if (!$session) {
+        return null;
+    }
+
+    if ($replyToMessageId === '') {
+        return null;
+    }
+
+    $payload = [
+        'chatId' => $chatId,
+        'session' => $session['session_name'],
+        'reply_to' => $replyToMessageId,
+        'poll' => [
+            'name' => $question,
+            'options' => array_values($options),
+            'multipleAnswers' => false
+        ]
+    ];
+
+    $response = app_whatsapp_api_post('/api/sendPoll', $payload, app_whatsapp_api_key());
+    $pollMessageId = $response['messageId'] ?? $response['id'] ?? $response['message_id'] ?? null;
+
+    if (is_array($pollMessageId)) {
+        $pollMessageId = $pollMessageId['messageId'] ?? $pollMessageId['id'] ?? $pollMessageId['message_id'] ?? null;
+    }
+
+    if (is_int($pollMessageId)) {
+        $pollMessageId = (string) $pollMessageId;
+    }
+
+    if (!is_string($pollMessageId)) {
+        return null;
+    }
+
+    $pollMessageId = trim($pollMessageId);
+
+    return $pollMessageId !== '' ? $pollMessageId : null;
+}
+
+function app_whatsapp_store_message_poll(int $sessionId, string $chatId, int $fileMessageId, string $pollMessageId, string $question, array $options): void
+{
+    $pdo = app_db();
+    $stmt = $pdo->prepare("
+        INSERT INTO whatsapp_message_polls
+        (session_id, group_id, file_message_id, poll_message_id, poll_question, poll_options, created_at)
+        VALUES (:session_id, :group_id, :file_message_id, :poll_message_id, :poll_question, :poll_options, NOW())
+    ");
+
+    $stmt->execute([
+        'session_id' => $sessionId,
+        'group_id' => $chatId,
+        'file_message_id' => $fileMessageId,
+        'poll_message_id' => $pollMessageId,
+        'poll_question' => $question,
+        'poll_options' => json_encode(array_values($options))
+    ]);
 }
 
 function app_whatsapp_send_category_assignment_notification(int $sessionId, string $chatId, int $categoryId, string $messageId): void

@@ -13,5 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TIMESTAMP NULL DEFAULT NULL,
     expiry_date DATE NULL,
     agent_contacts TEXT NULL,
+    file_handling_category_assignment INT NOT NULL DEFAULT 1,
     INDEX idx_expiry_date (expiry_date)
 );

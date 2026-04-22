@@ -36,6 +36,41 @@ function case_exports_sanitize_filename(string $name): string
     return trim($name, '_');
 }
 
+function case_exports_slugify(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    $value = preg_replace('/[^A-Za-z0-9]+/', '-', $value);
+    $value = preg_replace('/-+/', '-', $value);
+    return trim($value, '-');
+}
+
+function case_exports_clean_group_prefix(string $groupName, string $groupId): string
+{
+    $label = trim($groupName);
+    if ($label === '') {
+        $label = $groupId;
+    }
+
+    $sanitizedId = case_exports_sanitize_filename($groupId);
+    if ($sanitizedId !== '') {
+        $label = str_replace($groupId, '', $label);
+        $label = preg_replace('/[._-]?' . preg_quote($sanitizedId, '/') . '/i', '', $label);
+    }
+
+    $label = preg_replace('/[._-]?false_[0-9]+_g\.us/i', '', $label);
+    $label = preg_replace('/\s+/', ' ', $label);
+    $label = trim($label, " ._-");
+
+    if ($label === '') {
+        $label = $groupId;
+    }
+
+    return $label;
+}
+
 function case_exports_unique_path(string $dir, string $filename): string
 {
     $base = pathinfo($filename, PATHINFO_FILENAME);
@@ -194,6 +229,7 @@ function case_exports_run(int $exportId): void
         'group_id' => $groupId,
     ]);
 
+    $mediaIndex = 0;
     while ($row = $messageStmt->fetch()) {
         $timestampMs = (int) ($row['timestamp'] ?? 0);
         $timestamp = $timestampMs > 0
@@ -229,23 +265,46 @@ function case_exports_run(int $exportId): void
 
         $mediaUrl = trim((string) ($row['media_url'] ?? ''));
         if ($mediaUrl !== '') {
+            $mediaIndex++;
             $urlPath = parse_url($mediaUrl, PHP_URL_PATH);
-            $baseName = $urlPath ? basename((string) $urlPath) : '';
-            if ($baseName === '' || $baseName === '.' || $baseName === '/') {
-                $baseName = 'media_' . ((string) ($row['message_id'] ?? uniqid('media_', true)));
-            }
+            $urlBaseName = $urlPath ? basename((string) $urlPath) : '';
+            $urlExtension = $urlBaseName !== '' ? pathinfo($urlBaseName, PATHINFO_EXTENSION) : '';
 
-            $baseName = case_exports_sanitize_filename($baseName);
-            $extension = pathinfo($baseName, PATHINFO_EXTENSION);
+            $captionRaw = trim((string) ($row['media_caption'] ?? ''));
+            $captionExtension = $captionRaw !== '' ? pathinfo($captionRaw, PATHINFO_EXTENSION) : '';
+            $captionSlugSource = $captionRaw !== ''
+                ? ($captionExtension !== '' ? pathinfo($captionRaw, PATHINFO_FILENAME) : $captionRaw)
+                : '';
+            $captionSlug = case_exports_slugify($captionSlugSource);
+
+            $extension = '';
+            if ($captionExtension !== '') {
+                $extension = $captionExtension;
+            }
+            if ($extension === '' && $urlExtension !== '') {
+                $extension = $urlExtension;
+            }
             if ($extension === '') {
                 $mediaType = (string) ($row['media_type'] ?? '');
                 if (str_contains($mediaType, '/')) {
                     $parts = explode('/', $mediaType);
                     $extension = $parts[1] ?? '';
                 }
-                if ($extension !== '') {
-                    $baseName .= '.' . case_exports_sanitize_filename($extension);
-                }
+            }
+
+            $number = str_pad((string) $mediaIndex, 4, '0', STR_PAD_LEFT);
+            $prefix = case_exports_clean_group_prefix($groupName, $groupId);
+            $prefix = case_exports_sanitize_filename($prefix);
+            if ($prefix === '') {
+                $prefix = 'case';
+            }
+
+            $baseName = $prefix . '.' . $number;
+            if ($captionSlug !== '') {
+                $baseName .= '-' . $captionSlug;
+            }
+            if ($extension !== '') {
+                $baseName .= '.' . case_exports_sanitize_filename($extension);
             }
 
             $destPath = case_exports_unique_path($mediaDir, $baseName);

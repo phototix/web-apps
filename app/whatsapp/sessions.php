@@ -42,7 +42,7 @@ function app_whatsapp_create_session(int $userId): array {
             'config' => [
                 'webhooks' => [[
                     'url' => $webhookUrl,
-                    'events' => ['message'],
+                    'events' => ['message', 'poll.vote'],
                     'hmac' => ['key' => $webhookSecret]
                 ]]
             ]

@@ -1171,6 +1171,7 @@ function api_whatsapp_incoming_message(): void
             'group_id' => $chatId,
             'session_name' => $sessionName,
             'session_id' => $session['id'],
+            'user_id' => (int) $session['user_id'],
             'stored_at' => date('Y-m-d H:i:s')
         ];
         if (!empty($result['category_prompt'])) {

@@ -410,6 +410,8 @@ function app_page_files(): void
     $localFiles = [];
     $categoryTree = [];
     $allCategories = [];
+    $groupFilterOptions = [];
+    $currentGroupId = trim((string) ($_GET['group_id'] ?? ''));
     try {
         $db = app_db();
         $categoryStmt = $db->prepare('
@@ -439,8 +441,21 @@ function app_page_files(): void
         }
         $allCategories = $categoryById;
 
+        $groupStmt = $db->prepare('
+            SELECT DISTINCT gm.group_id, wg.name
+            FROM group_messages gm
+            INNER JOIN whatsapp_sessions ws ON gm.session_id = ws.id
+            LEFT JOIN whatsapp_groups wg ON gm.session_id = wg.session_id AND gm.group_id = wg.group_id
+            WHERE ws.user_id = :user_id
+              AND gm.media_url IS NOT NULL
+              AND gm.media_url != ""
+            ORDER BY COALESCE(wg.name, gm.group_id) ASC
+        ');
+        $groupStmt->execute(['user_id' => $effectiveUserId]);
+        $groupFilterOptions = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+
         $mediaStmt = $db->prepare('
-            SELECT gm.category_id, gm.message_type, gm.media_type, gm.media_url, gm.media_caption, gm.sender_name, gm.created_at
+            SELECT gm.category_id, gm.group_id, gm.message_type, gm.media_type, gm.media_url, gm.media_caption, gm.sender_name, gm.created_at
             FROM group_messages gm
             INNER JOIN whatsapp_sessions ws ON gm.session_id = ws.id
             WHERE ws.user_id = :user_id 
@@ -469,6 +484,7 @@ function app_page_files(): void
                 'media_caption' => $msg['media_caption'] ?? '',
                 'created_at' => $msg['created_at'],
                 'sender' => $msg['sender_name'] ?? '',
+                'group_id' => $msg['group_id'] ?? '',
                 'source' => 'local',
             ];
         }
@@ -617,6 +633,26 @@ function app_page_files(): void
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                                 <input type="text" class="form-control" id="files-grid-search" placeholder="Search files..." aria-label="Search files">
                             </div>
+                            <?php if ($currentCategoryId === 0): ?>
+                                <select class="form-select form-select-sm" id="files-group-filter" style="width: 200px;" aria-label="Filter by group">
+                                    <option value="">All Groups</option>
+                                    <?php foreach ($groupFilterOptions as $groupOption): ?>
+                                        <?php
+                                        $optionGroupId = (string) ($groupOption['group_id'] ?? '');
+                                        if ($optionGroupId === '') {
+                                            continue;
+                                        }
+                                        $optionGroupName = trim((string) ($groupOption['name'] ?? ''));
+                                        if ($optionGroupName === '') {
+                                            $optionGroupName = $optionGroupId;
+                                        }
+                                        ?>
+                                        <option value="<?= htmlspecialchars($optionGroupId, ENT_QUOTES, 'UTF-8') ?>" <?= $currentGroupId === $optionGroupId ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($optionGroupName, ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         <?php endif; ?>
                         <div class="btn-group btn-group-sm">
                             <a href="/files?<?= http_build_query(array_merge($_GET, ['view' => 'grid'])) ?>" class="btn <?= $viewMode === 'grid' ? 'btn-primary' : 'btn-outline-primary' ?>">
@@ -677,6 +713,7 @@ function app_page_files(): void
                             <?php $filePath = htmlspecialchars($resolvedPath, ENT_QUOTES, 'UTF-8'); $fileName = htmlspecialchars($file['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             <?php
                                 $searchData = '';
+                                $groupId = '';
                                 if (!$isCloudView) {
                                     $searchParts = [
                                         (string) ($file['name'] ?? ''),
@@ -687,9 +724,10 @@ function app_page_files(): void
                                         (string) ($file['created_at'] ?? ''),
                                     ];
                                     $searchData = trim(implode(' ', array_filter($searchParts)));
+                                    $groupId = (string) ($file['group_id'] ?? '');
                                 }
                             ?>
-                            <div class="col-6 col-md-4 col-lg-3"<?= $searchData !== '' ? ' data-file-search="' . htmlspecialchars($searchData, ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
+                            <div class="col-6 col-md-4 col-lg-3"<?= $searchData !== '' ? ' data-file-search="' . htmlspecialchars($searchData, ENT_QUOTES, 'UTF-8') . '"' : '' ?><?= $groupId !== '' ? ' data-group-id="' . htmlspecialchars($groupId, ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
                                 <?php if ($isFolder): ?>
                                 <a class="card h-100 text-center p-3 d-flex flex-column text-decoration-none" href="/files?<?= http_build_query(array_merge($_GET, ['cloud_folder' => $rawPath])) ?>">
                                     <div class="flex-grow-1 d-flex align-items-center justify-content-center mb-2">
@@ -765,6 +803,33 @@ function app_page_files(): void
                                     <?php $isFolder = $isCloudView && ($file['type'] ?? '') === 'folder'; ?>
                                     <?php $rawPath = (string) ($file['path'] ?? ''); $resolvedPath = $isCloudView && $cloudBaseUrl !== '' ? $cloudBaseUrl . $rawPath : $rawPath; ?>
                                     <?php $filePath = htmlspecialchars($resolvedPath, ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php
+                                        $searchData = '';
+                                        $groupId = '';
+                                        $rowAttributes = '';
+                                        if (!$isCloudView) {
+                                            $searchParts = [
+                                                (string) ($file['name'] ?? ''),
+                                                (string) ($file['media_caption'] ?? ''),
+                                                (string) ($file['media_type'] ?? ''),
+                                                (string) ($file['type'] ?? ''),
+                                                (string) ($file['sender'] ?? ''),
+                                                (string) ($file['created_at'] ?? ''),
+                                            ];
+                                            $searchData = trim(implode(' ', array_filter($searchParts)));
+                                            $groupId = (string) ($file['group_id'] ?? '');
+                                            $attributeParts = [];
+                                            if ($searchData !== '') {
+                                                $attributeParts[] = 'data-file-search="' . htmlspecialchars($searchData, ENT_QUOTES, 'UTF-8') . '"';
+                                            }
+                                            if ($groupId !== '') {
+                                                $attributeParts[] = 'data-group-id="' . htmlspecialchars($groupId, ENT_QUOTES, 'UTF-8') . '"';
+                                            }
+                                            if (!empty($attributeParts)) {
+                                                $rowAttributes = ' ' . implode(' ', $attributeParts);
+                                            }
+                                        }
+                                    ?>
                                     <?php if ($isFolder): ?>
                                     <tr>
                                         <td>
@@ -778,7 +843,7 @@ function app_page_files(): void
                                         <td></td>
                                     </tr>
                                     <?php elseif (in_array($msgType, ['image', 'photo']) || in_array($mediaType, ['image', 'photo'])): ?>
-                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="image">
+                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="image"<?= $rowAttributes ?>>
                                         <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars($file['type'] ?? 'document', ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars(substr($file['modified'] ?? ($file['created_at'] ?? '-'), 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
@@ -787,7 +852,7 @@ function app_page_files(): void
                                         </td>
                                     </tr>
                                     <?php elseif (in_array($msgType, ['document']) && $mediaType === 'application/pdf'): ?>
-                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="pdf">
+                                    <tr style="cursor:pointer" class="file-row" data-src="<?= $filePath ?>" data-type="pdf"<?= $rowAttributes ?>>
                                         <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars($file['type'] ?? 'document', ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars(substr($file['modified'] ?? ($file['created_at'] ?? '-'), 0, 10), ENT_QUOTES, 'UTF-8') ?></td>
@@ -796,7 +861,7 @@ function app_page_files(): void
                                         </td>
                                     </tr>
                                     <?php else: ?>
-                                    <tr>
+                                    <tr<?= $rowAttributes ?>>
                                         <td><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
                                             <?php if (in_array($msgType, ['video']) || in_array($mediaType, ['video'])): ?>
@@ -875,18 +940,22 @@ function app_page_files(): void
         });
 
         var filesGridSearch = document.getElementById('files-grid-search');
-        if (filesGridSearch) {
-            var filesGrid = document.getElementById('files-grid');
-            var gridItems = filesGrid ? filesGrid.querySelectorAll('[data-file-search]') : [];
+        var filesGroupFilter = document.getElementById('files-group-filter');
+        if (filesGridSearch || filesGroupFilter) {
+            var filterItems = document.querySelectorAll('[data-file-search]');
             var emptyState = document.getElementById('files-grid-empty');
 
             var filterFilesGrid = function() {
-                var query = filesGridSearch.value.toLowerCase().trim();
+                var query = filesGridSearch ? filesGridSearch.value.toLowerCase().trim() : '';
+                var selectedGroup = filesGroupFilter ? filesGroupFilter.value : '';
                 var visibleCount = 0;
 
-                gridItems.forEach(function(item) {
+                filterItems.forEach(function(item) {
                     var haystack = (item.getAttribute('data-file-search') || '').toLowerCase();
-                    var isMatch = query === '' || haystack.indexOf(query) !== -1;
+                    var groupId = item.getAttribute('data-group-id') || '';
+                    var matchesQuery = query === '' || haystack.indexOf(query) !== -1;
+                    var matchesGroup = selectedGroup === '' || groupId === selectedGroup;
+                    var isMatch = matchesQuery && matchesGroup;
                     item.style.display = isMatch ? '' : 'none';
                     if (isMatch) {
                         visibleCount += 1;
@@ -894,11 +963,17 @@ function app_page_files(): void
                 });
 
                 if (emptyState) {
-                    emptyState.style.display = (query !== '' && visibleCount === 0) ? '' : 'none';
+                    emptyState.style.display = (query !== '' || selectedGroup !== '') && visibleCount === 0 ? '' : 'none';
                 }
             };
 
-            filesGridSearch.addEventListener('input', filterFilesGrid);
+            if (filesGridSearch) {
+                filesGridSearch.addEventListener('input', filterFilesGrid);
+            }
+            if (filesGroupFilter) {
+                filesGroupFilter.addEventListener('change', filterFilesGrid);
+            }
+            filterFilesGrid();
         }
     });
     </script>
@@ -1118,6 +1193,10 @@ function app_page_settings(): void
         'MMK' => 'MMK - Myanmar Kyat'
     ];
     $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $fileHandlingCategoryAssignment = (int) ($effectiveUser['file_handling_category_assignment'] ?? 1);
+    if (!in_array($fileHandlingCategoryAssignment, [1, 2, 3], true)) {
+        $fileHandlingCategoryAssignment = 1;
+    }
 
     $mfaSecret = (string) ($settings['mfa_secret'] ?? '');
     $mfaEnabled = !empty($settings['mfa_enabled']);
@@ -1277,6 +1356,7 @@ function app_page_settings(): void
         if ($action === 'update_global_settings') {
             $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
             $requestedIncludeUserName = strtolower(trim((string) ($_POST['include_user_name_on_chat'] ?? 'no')));
+            $requestedFileHandling = (int) ($_POST['file_handling_category_assignment'] ?? 1);
             if (!array_key_exists($requestedCurrency, $currencyOptions)) {
                 app_flash('error', 'Invalid currency selection.');
                 app_redirect('/settings?page=global');
@@ -1284,6 +1364,11 @@ function app_page_settings(): void
 
             if (!in_array($requestedIncludeUserName, ['yes', 'no'], true)) {
                 app_flash('error', 'Invalid chat name setting.');
+                app_redirect('/settings?page=global');
+            }
+
+            if (!in_array($requestedFileHandling, [1, 2, 3], true)) {
+                app_flash('error', 'Invalid file handling selection.');
                 app_redirect('/settings?page=global');
             }
 
@@ -1298,9 +1383,10 @@ function app_page_settings(): void
                 }
 
                 $db = app_db();
-                $stmt = $db->prepare('UPDATE users SET settings = :settings WHERE id = :id');
+                $stmt = $db->prepare('UPDATE users SET settings = :settings, file_handling_category_assignment = :file_handling_category_assignment WHERE id = :id');
                 $stmt->execute([
                     'settings' => $encodedSettings,
+                    'file_handling_category_assignment' => $requestedFileHandling,
                     'id' => $effectiveUserId
                 ]);
                 app_flash('success', 'Global settings updated.');
@@ -1432,6 +1518,30 @@ function app_page_settings(): void
             }
 
             app_redirect('/settings?page=security');
+        }
+
+        if ($action === 'update_account_name') {
+            $requestedName = trim((string) ($_POST['account_name'] ?? ''));
+            if ($requestedName === '' || mb_strlen($requestedName) > 100) {
+                app_flash('error', 'Name is required and must be 100 characters or less.');
+                app_redirect('/settings?page=account');
+            }
+
+            try {
+                $db = app_db();
+                $stmt = $db->prepare('UPDATE users SET name = :name WHERE id = :id');
+                $stmt->execute([
+                    'name' => $requestedName,
+                    'id' => (int) ($user['id'] ?? 0)
+                ]);
+                app_flash('success', 'Name updated.');
+                app_log_audit('update_account_name', ['name' => $requestedName], $user);
+            } catch (Exception $e) {
+                app_log('Failed to update name: ' . $e->getMessage(), 'ERROR');
+                app_flash('error', 'Failed to update name.');
+            }
+
+            app_redirect('/settings?page=account');
         }
 
         if ($action === 'update_password') {
@@ -1582,18 +1692,22 @@ function app_page_settings(): void
                                         <h5 class="mb-0">Account Information</h5>
                                     </div>
                                     <div class="card-body">
-                                        <div class="mb-3">
-                                            <label class="form-label">Name</label>
-                                            <input type="text" class="form-control" value="<?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Email</label>
-                                            <input type="email" class="form-control" value="<?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Role</label>
-                                            <input type="text" class="form-control" value="<?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?>" readonly>
-                                        </div>
+                                        <form method="post" action="/settings?page=account">
+                                            <input type="hidden" name="settings_action" value="update_account_name">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="account_name">Name</label>
+                                                <input type="text" class="form-control" id="account_name" name="account_name" value="<?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?>" required maxlength="100">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Email</label>
+                                                <input type="email" class="form-control" value="<?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?>" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Role</label>
+                                                <input type="text" class="form-control" value="<?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?>" readonly>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Name</button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -1787,6 +1901,25 @@ function app_page_settings(): void
                                                     <option value="yes" <?= $includeUserNameOnChat ? 'selected' : '' ?>>Yes</option>
                                                 </select>
                                                 <small class="text-muted">If enabled, your name is prefixed on messages sent in Groups.</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">File Handling for Category Assignment</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="file_handling_category_assignment">Assignment Mode</label>
+                                                <select class="form-select" id="file_handling_category_assignment" name="file_handling_category_assignment">
+                                                    <option value="1" <?= $fileHandlingCategoryAssignment === 1 ? 'selected' : '' ?>>Keywords Assign</option>
+                                                    <option value="2" <?= $fileHandlingCategoryAssignment === 2 ? 'selected' : '' ?>>Choose Category</option>
+                                                    <option value="3" <?= $fileHandlingCategoryAssignment === 3 ? 'selected' : '' ?>>AI Assign (Prompt Aware)</option>
+                                                </select>
+                                                <small class="text-muted">AI Assign might make mistake, post user handling may require.</small>
                                             </div>
                                             <button type="submit" class="btn btn-primary">Save Settings</button>
                                         </div>
@@ -2187,7 +2320,7 @@ function app_page_cases(): void
                         <h4 class="mb-0">Cases</h4>
                         <p class="text-muted mb-0">File browser for synced WhatsApp groups (folders)</p>
                     </div>
-                     <div class="d-flex align-items-center">
+                     <div class="d-flex align-items-center" id="cases-toolbar">
                          <div class="btn-group me-3">
                              <button type="button" class="btn btn-outline-secondary active" id="view-grid">
                                  <i class="fas fa-th-large"></i>
@@ -3618,6 +3751,7 @@ function app_page_cases(): void
         const backToFoldersBtn = document.getElementById('back-to-folders');
         const currentFolderName = document.getElementById('current-folder-name');
         const currentFolderInfo = document.getElementById('current-folder-info');
+        const casesToolbar = document.getElementById('cases-toolbar');
         
         openFolderBtns.forEach(btn => {
             btn.addEventListener('click', function() {
@@ -3635,6 +3769,9 @@ function app_page_cases(): void
                 // Switch views
                 folderGridView.classList.add('d-none');
                 folderContentView.classList.remove('d-none');
+                if (casesToolbar) {
+                    casesToolbar.classList.add('d-none');
+                }
                 
                 // Load folder content via AJAX
                 loadFolderContent(groupId);
@@ -3645,6 +3782,9 @@ function app_page_cases(): void
             folderContentView.classList.add('d-none');
             folderGridView.classList.remove('d-none');
             setCurrentCaseExport(null, null, null);
+            if (casesToolbar) {
+                casesToolbar.classList.remove('d-none');
+            }
         });
 
         const caseDownloadBtn = document.getElementById('case-download-btn');

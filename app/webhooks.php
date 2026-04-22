@@ -51,6 +51,7 @@ function app_handle_whatsapp_webhook(string $path): void {
     echo json_encode([
         'status' => 'queued',
         'event_id' => $eventId,
+        'user_id' => $userId,
         'timestamp' => time()
     ]);
 }

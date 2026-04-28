@@ -1193,6 +1193,11 @@ function app_page_settings(): void
         'MMK' => 'MMK - Myanmar Kyat'
     ];
     $defaultCurrency = $settings['default_currency'] ?? 'USD';
+    $defaultSystemPrompt = 'You are a helpful assistant. Reply do not include text decoration, do not give followup questions, and do not give recommend action.';
+    $systemPrompt = (string) ($settings['system_prompt'] ?? '');
+    if (trim($systemPrompt) === '') {
+        $systemPrompt = $defaultSystemPrompt;
+    }
     $fileHandlingCategoryAssignment = (int) ($effectiveUser['file_handling_category_assignment'] ?? 1);
     if (!in_array($fileHandlingCategoryAssignment, [1, 2, 3], true)) {
         $fileHandlingCategoryAssignment = 1;
@@ -1357,6 +1362,10 @@ function app_page_settings(): void
             $requestedCurrency = strtoupper(trim((string) ($_POST['default_currency'] ?? '')));
             $requestedIncludeUserName = strtolower(trim((string) ($_POST['include_user_name_on_chat'] ?? 'no')));
             $requestedFileHandling = (int) ($_POST['file_handling_category_assignment'] ?? 1);
+            $requestedSystemPrompt = trim((string) ($_POST['system_prompt'] ?? ''));
+            if ($requestedSystemPrompt === '') {
+                $requestedSystemPrompt = $defaultSystemPrompt;
+            }
             if (!array_key_exists($requestedCurrency, $currencyOptions)) {
                 app_flash('error', 'Invalid currency selection.');
                 app_redirect('/settings?page=global');
@@ -1372,8 +1381,14 @@ function app_page_settings(): void
                 app_redirect('/settings?page=global');
             }
 
+            if (mb_strlen($requestedSystemPrompt) > 1200) {
+                app_flash('error', 'System prompt must be 1200 characters or less.');
+                app_redirect('/settings?page=global');
+            }
+
             $settings['default_currency'] = $requestedCurrency;
             $settings['include_user_name_on_chat'] = ($requestedIncludeUserName === 'yes');
+            $settings['system_prompt'] = $requestedSystemPrompt;
 
             try {
                 $encodedSettings = json_encode($settings);
@@ -1920,6 +1935,21 @@ function app_page_settings(): void
                                                     <option value="3" <?= $fileHandlingCategoryAssignment === 3 ? 'selected' : '' ?>>AI Assign (Prompt Aware)</option>
                                                 </select>
                                                 <small class="text-muted">AI Assign might make mistake, post user handling may require.</small>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="card mb-3">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">System Prompt</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="system_prompt">Default system prompt</label>
+                                                <textarea class="form-control" id="system_prompt" name="system_prompt" rows="5" maxlength="1200" placeholder="Enter the system prompt used for AI processing. Leave empty to use the default."><?= htmlspecialchars($systemPrompt, ENT_QUOTES, 'UTF-8') ?></textarea>
+                                                <small class="text-muted">Used as the base instruction for AI. Max 1200 characters. Leaving it empty uses the default.</small>
                                             </div>
                                             <button type="submit" class="btn btn-primary">Save Settings</button>
                                         </div>

@@ -1165,6 +1165,28 @@ function api_whatsapp_incoming_message(): void
     try {
         // Store the message
         $result = app_whatsapp_store_incoming_message($messageData);
+
+        $defaultSystemPrompt = 'You are a helpful assistant. Reply do not include text decoration, do not give followup questions, and do not give recommend action.';
+        $systemPrompt = '';
+        $sessionUserId = (int) ($session['user_id'] ?? 0);
+        if ($sessionUserId > 0) {
+            $pdo = app_db();
+            $sessionUser = app_find_user_by_id($pdo, $sessionUserId);
+            if ($sessionUser) {
+                $effectiveUser = app_get_effective_user($sessionUser);
+                $settings = [];
+                if (!empty($effectiveUser['settings'])) {
+                    $decodedSettings = json_decode($effectiveUser['settings'], true);
+                    if (is_array($decodedSettings)) {
+                        $settings = $decodedSettings;
+                    }
+                }
+                $systemPrompt = (string) ($settings['system_prompt'] ?? '');
+            }
+        }
+        if (trim($systemPrompt) === '') {
+            $systemPrompt = $defaultSystemPrompt;
+        }
         
         $responseData = [
             'message_id' => $result['id'],
@@ -1173,7 +1195,8 @@ function api_whatsapp_incoming_message(): void
             'session_id' => $session['id'],
             'user_id' => (int) $session['user_id'],
             'stored_at' => date('Y-m-d H:i:s'),
-            'mode' => app_whatsapp_get_file_handling_category_assignment((int) $session['id'])
+            'mode' => app_whatsapp_get_file_handling_category_assignment((int) $session['id']),
+            'system_prompt' => $systemPrompt
         ];
         if (!empty($result['category_prompt'])) {
             $responseData['category_prompt'] = $result['category_prompt'];

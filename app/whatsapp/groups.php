@@ -13,7 +13,8 @@ function app_whatsapp_sync_groups(int $sessionId): array {
     try {
         $groups = app_whatsapp_api_get(
             "/api/{$session['session_name']}/groups",
-            app_whatsapp_api_key()
+            null,
+            (int) $session['user_id']
         );
         
         $synced = 0;
@@ -165,7 +166,8 @@ function app_whatsapp_create_group(int $sessionId, string $name, array $particip
                 'subject' => $name,
                 'participants' => $participants
             ],
-            app_whatsapp_api_key()
+            null,
+            (int) $session['user_id']
         );
         
         // Store in database
@@ -206,7 +208,8 @@ function app_whatsapp_update_group_info(int $groupId, array $updates): bool {
             app_whatsapp_api_put(
                 "/api/{$session['session_name']}/groups/{$group['group_id']}/subject",
                 ['subject' => $updates['subject']],
-                app_whatsapp_api_key()
+                null,
+                (int) $session['user_id']
             );
         }
         
@@ -214,7 +217,8 @@ function app_whatsapp_update_group_info(int $groupId, array $updates): bool {
             app_whatsapp_api_put(
                 "/api/{$session['session_name']}/groups/{$group['group_id']}/description",
                 ['description' => $updates['description']],
-                app_whatsapp_api_key()
+                null,
+                (int) $session['user_id']
             );
         }
         

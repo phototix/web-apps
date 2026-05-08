@@ -8,12 +8,54 @@ function app_whatsapp_base_url(): string {
     return app_env('APP_BASE_URL', 'http://localhost');
 }
 
-function app_whatsapp_api_endpoint(): string {
-    return app_env('WHATSAPP_API_ENDPOINT', 'http://localhost:3000');
+function app_whatsapp_api_endpoint(?int $userId = null): string {
+    $defaultEndpoint = app_env('WHATSAPP_API_ENDPOINT', 'http://localhost:3000');
+    $user = $userId !== null ? app_find_user_by_id(app_db(), $userId) : app_current_user();
+    if (!$user) {
+        return $defaultEndpoint;
+    }
+
+    $effectiveUser = app_get_effective_user($user);
+    $settings = [];
+    if (!empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $customEndpoint = trim((string) ($settings['waha_endpoint'] ?? ''));
+    $customApiKey = trim((string) ($settings['waha_api_key'] ?? ''));
+    if ($customEndpoint !== '' && $customApiKey !== '') {
+        return $customEndpoint;
+    }
+
+    return $defaultEndpoint;
 }
 
-function app_whatsapp_api_key(): string {
-    return app_env('WHATSAPP_API_KEY', '');
+function app_whatsapp_api_key(?int $userId = null): string {
+    $defaultApiKey = app_env('WHATSAPP_API_KEY', '');
+    $user = $userId !== null ? app_find_user_by_id(app_db(), $userId) : app_current_user();
+    if (!$user) {
+        return $defaultApiKey;
+    }
+
+    $effectiveUser = app_get_effective_user($user);
+    $settings = [];
+    if (!empty($effectiveUser['settings'])) {
+        $decodedSettings = json_decode($effectiveUser['settings'], true);
+        if (is_array($decodedSettings)) {
+            $settings = $decodedSettings;
+        }
+    }
+
+    $customEndpoint = trim((string) ($settings['waha_endpoint'] ?? ''));
+    $customApiKey = trim((string) ($settings['waha_api_key'] ?? ''));
+    if ($customEndpoint !== '' && $customApiKey !== '') {
+        return $customApiKey;
+    }
+
+    return $defaultApiKey;
 }
 
 function app_tier_limits(): array {

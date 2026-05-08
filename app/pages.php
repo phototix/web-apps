@@ -1198,6 +1198,19 @@ function app_page_settings(): void
     if (trim($systemPrompt) === '') {
         $systemPrompt = $defaultSystemPrompt;
     }
+    $wahaEndpoint = trim((string) ($settings['waha_endpoint'] ?? ''));
+    $wahaApiKey = (string) ($settings['waha_api_key'] ?? '');
+    $maskedWahaApiKey = '';
+    if ($wahaApiKey !== '') {
+        $keyLength = strlen($wahaApiKey);
+        if ($keyLength > 6) {
+            $maskedWahaApiKey = substr($wahaApiKey, 0, 3)
+                . str_repeat('*', $keyLength - 6)
+                . substr($wahaApiKey, -3);
+        } else {
+            $maskedWahaApiKey = str_repeat('*', $keyLength);
+        }
+    }
     $fileHandlingCategoryAssignment = (int) ($effectiveUser['file_handling_category_assignment'] ?? 1);
     if (!in_array($fileHandlingCategoryAssignment, [1, 2, 3], true)) {
         $fileHandlingCategoryAssignment = 1;
@@ -1363,6 +1376,8 @@ function app_page_settings(): void
             $requestedIncludeUserName = strtolower(trim((string) ($_POST['include_user_name_on_chat'] ?? 'no')));
             $requestedFileHandling = (int) ($_POST['file_handling_category_assignment'] ?? 1);
             $requestedSystemPrompt = trim((string) ($_POST['system_prompt'] ?? ''));
+            $requestedWahaEndpoint = trim((string) ($_POST['waha_endpoint'] ?? ''));
+            $requestedWahaApiKey = (string) ($_POST['waha_api_key'] ?? '');
             if ($requestedSystemPrompt === '') {
                 $requestedSystemPrompt = $defaultSystemPrompt;
             }
@@ -1386,9 +1401,18 @@ function app_page_settings(): void
                 app_redirect('/settings?page=global');
             }
 
+            if ($requestedWahaEndpoint !== '' && filter_var($requestedWahaEndpoint, FILTER_VALIDATE_URL) === false) {
+                app_flash('error', 'WAHA endpoint must be a valid URL.');
+                app_redirect('/settings?page=global');
+            }
+
             $settings['default_currency'] = $requestedCurrency;
             $settings['include_user_name_on_chat'] = ($requestedIncludeUserName === 'yes');
             $settings['system_prompt'] = $requestedSystemPrompt;
+            if (in_array(($user['role'] ?? ''), ['admin', 'superadmin'], true)) {
+                $settings['waha_endpoint'] = $requestedWahaEndpoint;
+                $settings['waha_api_key'] = $requestedWahaApiKey;
+            }
 
             try {
                 $encodedSettings = json_encode($settings);
@@ -1955,6 +1979,33 @@ function app_page_settings(): void
                                         </div>
                                     </div>
                                 </div>
+                                <?php if (in_array(($user['role'] ?? ''), ['admin', 'superadmin'], true)): ?>
+                                    <div class="col-12">
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                <h5 class="mb-0">WhatsApp Provider</h5>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label" for="waha_endpoint">WAHA Endpoint</label>
+                                                    <input class="form-control" id="waha_endpoint" name="waha_endpoint" type="url" placeholder="https://waha.example.com" value="<?= htmlspecialchars($wahaEndpoint, ENT_QUOTES, 'UTF-8') ?>">
+                                                    <small class="text-muted">Leave empty to use the default endpoint.</small>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label" for="waha_api_key">API Key</label>
+                                                    <input class="form-control" id="waha_api_key" name="waha_api_key" type="password" autocomplete="new-password" value="<?= htmlspecialchars($wahaApiKey, ENT_QUOTES, 'UTF-8') ?>">
+                                                    <?php if ($maskedWahaApiKey !== ''): ?>
+                                                        <small class="text-muted">Current key: <?= htmlspecialchars($maskedWahaApiKey, ENT_QUOTES, 'UTF-8') ?></small>
+                                                    <?php else: ?>
+                                                        <small class="text-muted">Leave empty to use the default API key.</small>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <small class="text-muted d-block mb-3">Both values must be set to override the default WAHA provider.</small>
+                                                <button type="submit" class="btn btn-primary">Save Settings</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </form>
                     <?php elseif ($currentPage === 'connects'): ?>

@@ -43,6 +43,49 @@ function app_page_whatsapp_connect(): void {
                     app_flash('error', $e->getMessage());
                 }
             }
+        } elseif ($action === 'reset_session') {
+            $sessionId = (int) ($_POST['session_id'] ?? 0);
+            if ($sessionId) {
+                try {
+                    $session = app_whatsapp_get_session($sessionId);
+                    if (!$session) {
+                        app_flash('error', 'Session not found.');
+                        app_redirect('/whatsapp-connect');
+                    }
+
+                    $sessionName = (string) ($session['session_name'] ?? '');
+                    $needsReset = false;
+                    try {
+                        app_whatsapp_api_get(
+                            "/api/sessions/{$sessionName}",
+                            null,
+                            (int) ($session['user_id'] ?? 0)
+                        );
+                    } catch (Exception $e) {
+                        if ($e->getCode() === 404 || stripos($e->getMessage(), 'not found') !== false) {
+                            $needsReset = true;
+                        } else {
+                            throw $e;
+                        }
+                    }
+
+                    if ($needsReset) {
+                        app_whatsapp_delete_session($sessionId);
+                        $result = app_whatsapp_create_session($user['id']);
+                        app_log_audit('reset_session', [
+                            'old_session_id' => $sessionId,
+                            'old_session_name' => $sessionName,
+                            'new_session_id' => $result['session_id'] ?? null,
+                            'new_session_name' => $result['session_name'] ?? null,
+                        ], $user);
+                        app_flash('success', 'Session reset. Scan the new QR code to reconnect.');
+                    } else {
+                        app_flash('info', 'Session is still available. Reset is not required.');
+                    }
+                } catch (Exception $e) {
+                    app_flash('error', $e->getMessage());
+                }
+            }
         }
         
         app_redirect('/whatsapp-connect');
@@ -114,8 +157,19 @@ function app_page_whatsapp_connect(): void {
                                                                 <?= htmlspecialchars($session['session_name']) ?>
                                                             <?php endif; ?>
                                                         </h6>
-                                                        <span class="badge bg-<?= $session['status'] === 'active' ? 'success' : ($session['status'] === 'pending' ? 'warning' : 'secondary') ?>">
-                                                            <?= ucfirst($session['status']) ?>
+                                                        <?php
+                                                            $status = (string) ($session['status'] ?? 'pending');
+                                                            $statusClass = 'secondary';
+                                                            if ($status === 'active') {
+                                                                $statusClass = 'success';
+                                                            } elseif (in_array($status, ['pending', 'authenticating'], true)) {
+                                                                $statusClass = 'warning';
+                                                            } elseif (in_array($status, ['error', 'invalid'], true)) {
+                                                                $statusClass = 'danger';
+                                                            }
+                                                        ?>
+                                                        <span class="badge bg-<?= $statusClass ?>">
+                                                            <?= ucfirst($status) ?>
                                                         </span>
                                                     </div>
                                                     <p class="card-text small text-muted">
@@ -170,24 +224,31 @@ function app_page_whatsapp_connect(): void {
                                                         </div>
                                                     <?php endif; ?>
                                                     
-                                                      <div class="d-flex justify-content-between mt-3">
-                                                          <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
-                                                                  data-session-id="<?= $session['id'] ?>"
-                                                                  data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
-                                                              <i class="fas fa-trash me-1"></i> Delete
-                                                          </button>
-                                                          <?php if (!empty($session['can_view_screenshot'])): ?>
-                                                              <button type="button" class="btn btn-sm btn-outline-primary screenshot-btn"
-                                                                      data-session-id="<?= $session['id'] ?>">
-                                                                  <i class="fas fa-camera me-1"></i> View Screenshot
-                                                              </button>
-                                                          <?php endif; ?>
-                                                          <?php if ($session['status'] === 'active'): ?>
-                                                              <a href="/groups?session=<?= urlencode($session['session_name']) ?>" class="btn btn-sm btn-success">
-                                                                  <i class="fas fa-users me-1"></i> View Groups
-                                                              </a>
-                                                          <?php endif; ?>
-                                                      </div>
+                                                       <div class="d-flex justify-content-between mt-3">
+                                                           <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
+                                                                   data-session-id="<?= $session['id'] ?>"
+                                                                   data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
+                                                               <i class="fas fa-trash me-1"></i> Delete
+                                                           </button>
+                                                           <?php if (in_array($session['status'], ['error', 'invalid'], true)): ?>
+                                                               <button type="button" class="btn btn-sm btn-outline-warning reset-session-btn"
+                                                                       data-session-id="<?= $session['id'] ?>"
+                                                                       data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
+                                                                   <i class="fas fa-rotate me-1"></i> Reset
+                                                               </button>
+                                                           <?php endif; ?>
+                                                           <?php if (!empty($session['can_view_screenshot'])): ?>
+                                                               <button type="button" class="btn btn-sm btn-outline-primary screenshot-btn"
+                                                                       data-session-id="<?= $session['id'] ?>">
+                                                                   <i class="fas fa-camera me-1"></i> View Screenshot
+                                                               </button>
+                                                           <?php endif; ?>
+                                                           <?php if ($session['status'] === 'active'): ?>
+                                                               <a href="/groups?session=<?= urlencode($session['session_name']) ?>" class="btn btn-sm btn-success">
+                                                                   <i class="fas fa-users me-1"></i> View Groups
+                                                               </a>
+                                                           <?php endif; ?>
+                                                       </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -390,6 +451,60 @@ function app_page_whatsapp_connect(): void {
                      if (result.isConfirmed) {
                          // Page will reload from the redirect
                      }
+                 });
+             });
+         });
+
+         // Handle session reset with SweetAlert
+         document.querySelectorAll('.reset-session-btn').forEach(button => {
+             button.addEventListener('click', function() {
+                 const sessionId = this.dataset.sessionId;
+                 const sessionName = this.dataset.sessionName;
+
+                 Swal.fire({
+                     title: 'Reset Session?',
+                     html: `This will create a new session if <strong>${sessionName}</strong> is missing on WAHA.<br><br>
+                            <small class="text-muted">You will need to scan a new QR code.</small>`,
+                     icon: 'warning',
+                     showCancelButton: true,
+                     confirmButtonColor: '#f0ad4e',
+                     cancelButtonColor: '#3085d6',
+                     confirmButtonText: 'Yes, reset it!',
+                     cancelButtonText: 'Cancel',
+                     reverseButtons: true,
+                     showLoaderOnConfirm: true,
+                     preConfirm: () => {
+                         return fetch('/whatsapp-connect', {
+                             method: 'POST',
+                             headers: {
+                                 'Content-Type': 'application/x-www-form-urlencoded',
+                             },
+                             body: `action=reset_session&session_id=${sessionId}`,
+                             redirect: 'manual'
+                         })
+                         .then(response => {
+                             if (response.type === 'opaqueredirect' || response.status === 0) {
+                                 window.location.href = '/whatsapp-connect';
+                                 return new Promise(() => {});
+                             }
+                             if (response.status >= 300 && response.status < 400) {
+                                 const redirectUrl = response.headers.get('Location') || '/whatsapp-connect';
+                                 window.location.href = redirectUrl;
+                                 return new Promise(() => {});
+                             } else if (response.ok) {
+                                 window.location.reload();
+                                 return new Promise(() => {});
+                             } else {
+                                 return response.text().then(text => {
+                                     throw new Error(`Reset failed: ${response.status} ${response.statusText}`);
+                                 });
+                             }
+                         })
+                         .catch(error => {
+                             Swal.showValidationMessage(`Request failed: ${error}`);
+                         });
+                     },
+                     allowOutsideClick: () => !Swal.isLoading()
                  });
              });
          });

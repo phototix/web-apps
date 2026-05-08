@@ -46,7 +46,7 @@ function app_whatsapp_create_session(int $userId): array {
                     'hmac' => ['key' => $webhookSecret]
                 ]]
             ]
-        ], app_whatsapp_api_key());
+        ], null, $userId);
         
         // Map WAHA status to database status
         $wahaStatus = strtolower($response['status'] ?? 'stopped');
@@ -65,7 +65,7 @@ function app_whatsapp_create_session(int $userId): array {
             'user_id' => $userId,
             'session_name' => $sessionName,
             'api_key' => $response['apiKey'] ?? '',
-            'endpoint_url' => app_whatsapp_api_endpoint(),
+            'endpoint_url' => app_whatsapp_api_endpoint($userId),
             'webhook_url' => $webhookUrl,
             'webhook_secret' => $webhookSecret,
             'status' => $dbStatus
@@ -109,7 +109,8 @@ function app_whatsapp_get_qr(int $sessionId): ?string {
         // Always fetch fresh QR code from WAHA (QR codes expire quickly)
         $qrImage = app_whatsapp_api_get_binary(
             "/api/{$session['session_name']}/auth/qr?format=image",
-            app_whatsapp_api_key()
+            null,
+            (int) $session['user_id']
         );
         
         // Check if we got a valid image
@@ -223,7 +224,11 @@ function app_whatsapp_delete_session(int $sessionId): bool {
     
     try {
         // Delete from WAHA API
-        app_whatsapp_api_delete("/api/sessions/{$session['session_name']}", app_whatsapp_api_key());
+        app_whatsapp_api_delete(
+            "/api/sessions/{$session['session_name']}",
+            null,
+            (int) $session['user_id']
+        );
     } catch (Exception $e) {
         app_log('Failed to delete session from WAHA: ' . $e->getMessage(), 'WARNING', [
             'session_id' => $sessionId
@@ -246,7 +251,8 @@ function app_whatsapp_get_session_status(int $sessionId): array {
         // Get session status from WAHA
         $wahaSession = app_whatsapp_api_get(
             "/api/sessions/{$session['session_name']}",
-            app_whatsapp_api_key()
+            null,
+            (int) $session['user_id']
         );
         
         // Map WAHA status to database status
@@ -290,7 +296,23 @@ function app_whatsapp_get_session_status(int $sessionId): array {
         app_log('Failed to get session status: ' . $e->getMessage(), 'ERROR', [
             'session_id' => $sessionId
         ]);
-        return ['status' => 'error', 'message' => $e->getMessage()];
+        $errorMessage = $e->getMessage();
+        $status = 'error';
+        if ($e->getCode() === 404 || stripos($errorMessage, 'not found') !== false) {
+            $status = 'invalid';
+        }
+
+        if ($status !== $session['status']) {
+            $pdo = app_db();
+            $stmt = $pdo->prepare("
+                UPDATE whatsapp_sessions
+                SET status = :status, updated_at = NOW()
+                WHERE id = :id
+            ");
+            $stmt->execute(['status' => $status, 'id' => $sessionId]);
+        }
+
+        return ['status' => $status, 'message' => $errorMessage];
     }
 }
 

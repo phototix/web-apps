@@ -476,8 +476,9 @@ function api_whatsapp_get_screenshot(): void {
         $screenshot = app_whatsapp_api_get_binary_with_headers(
             $endpoint,
             ['Accept: image/jpeg'],
-            null,
-            $effectiveUserId
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
 
         app_clear_output_buffers();
@@ -1712,7 +1713,15 @@ function api_whatsapp_delete_message(): void {
             throw new Exception('Message metadata missing for remote deletion');
         }
 
-        app_whatsapp_delete_remote_message($sessionName, $groupId, $remoteMessageId, $effectiveUserId);
+        $session = app_whatsapp_get_session((int) ($message['session_id'] ?? 0));
+        app_whatsapp_delete_remote_message(
+            $sessionName,
+            $groupId,
+            $remoteMessageId,
+            (int) ($session['user_id'] ?? $effectiveUserId),
+            $session['endpoint_url'] ?? null,
+            $session['api_key'] ?: null
+        );
 
         $deleted = app_whatsapp_delete_message_by_id($messageId);
         if (!$deleted) {

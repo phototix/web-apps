@@ -11,10 +11,18 @@ function app_whatsapp_sync_groups(int $sessionId): array {
     }
     
     try {
+        try {
+            app_whatsapp_get_session_status($sessionId);
+            $session = app_whatsapp_get_session($sessionId) ?: $session;
+        } catch (Exception $e) {
+            // Continue with sync attempt using current session data
+        }
+
         $groups = app_whatsapp_api_get(
             "/api/{$session['session_name']}/groups",
-            null,
-            (int) $session['user_id']
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         $synced = 0;
@@ -166,8 +174,9 @@ function app_whatsapp_create_group(int $sessionId, string $name, array $particip
                 'subject' => $name,
                 'participants' => $participants
             ],
-            null,
-            (int) $session['user_id']
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         // Store in database
@@ -208,8 +217,9 @@ function app_whatsapp_update_group_info(int $groupId, array $updates): bool {
             app_whatsapp_api_put(
                 "/api/{$session['session_name']}/groups/{$group['group_id']}/subject",
                 ['subject' => $updates['subject']],
-                null,
-                (int) $session['user_id']
+                $session['api_key'] ?: null,
+                (int) ($session['user_id'] ?? 0),
+                $session['endpoint_url'] ?? null
             );
         }
         
@@ -217,8 +227,9 @@ function app_whatsapp_update_group_info(int $groupId, array $updates): bool {
             app_whatsapp_api_put(
                 "/api/{$session['session_name']}/groups/{$group['group_id']}/description",
                 ['description' => $updates['description']],
-                null,
-                (int) $session['user_id']
+                $session['api_key'] ?: null,
+                (int) ($session['user_id'] ?? 0),
+                $session['endpoint_url'] ?? null
             );
         }
         

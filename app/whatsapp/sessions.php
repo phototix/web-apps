@@ -109,8 +109,9 @@ function app_whatsapp_get_qr(int $sessionId): ?string {
         // Always fetch fresh QR code from WAHA (QR codes expire quickly)
         $qrImage = app_whatsapp_api_get_binary(
             "/api/{$session['session_name']}/auth/qr?format=image",
-            null,
-            (int) $session['user_id']
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         // Check if we got a valid image
@@ -226,8 +227,9 @@ function app_whatsapp_delete_session(int $sessionId): bool {
         // Delete from WAHA API
         app_whatsapp_api_delete(
             "/api/sessions/{$session['session_name']}",
-            null,
-            (int) $session['user_id']
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
     } catch (Exception $e) {
         app_log('Failed to delete session from WAHA: ' . $e->getMessage(), 'WARNING', [
@@ -251,8 +253,9 @@ function app_whatsapp_get_session_status(int $sessionId): array {
         // Get session status from WAHA
         $wahaSession = app_whatsapp_api_get(
             "/api/sessions/{$session['session_name']}",
-            null,
-            (int) $session['user_id']
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         // Map WAHA status to database status
@@ -293,10 +296,82 @@ function app_whatsapp_get_session_status(int $sessionId): array {
         ];
         
     } catch (Exception $e) {
-        app_log('Failed to get session status: ' . $e->getMessage(), 'ERROR', [
+        $errorMessage = $e->getMessage();
+        $shouldRetry = $e->getCode() === 404
+            || stripos($errorMessage, 'not found') !== false
+            || stripos($errorMessage, 'does not exist') !== false;
+
+        if ($shouldRetry) {
+            $defaultEndpoint = trim((string) app_env('WHATSAPP_API_ENDPOINT', 'http://localhost:3000'));
+            $defaultApiKey = trim((string) app_env('WHATSAPP_API_KEY', ''));
+            $currentEndpoint = trim((string) ($session['endpoint_url'] ?? ''));
+            $currentApiKey = trim((string) ($session['api_key'] ?? ''));
+
+            if ($defaultEndpoint !== '' && ($currentEndpoint !== $defaultEndpoint || $currentApiKey !== $defaultApiKey)) {
+                try {
+                    $fallbackSession = app_whatsapp_api_get(
+                        "/api/sessions/{$session['session_name']}",
+                        $defaultApiKey !== '' ? $defaultApiKey : null,
+                        (int) ($session['user_id'] ?? 0),
+                        $defaultEndpoint
+                    );
+
+                    $pdo = app_db();
+                    $stmt = $pdo->prepare("
+                        UPDATE whatsapp_sessions
+                        SET endpoint_url = :endpoint_url,
+                            api_key = :api_key,
+                            updated_at = NOW()
+                        WHERE id = :id
+                    ");
+                    $stmt->execute([
+                        'endpoint_url' => $defaultEndpoint,
+                        'api_key' => $defaultApiKey,
+                        'id' => $sessionId
+                    ]);
+
+                    $wahaStatus = strtolower($fallbackSession['status'] ?? 'stopped');
+                    $dbStatus = 'pending';
+
+                    if ($wahaStatus === 'scan_qr_code') {
+                        $dbStatus = 'authenticating';
+                    } elseif ($wahaStatus === 'working') {
+                        $dbStatus = 'active';
+                    } elseif (in_array($wahaStatus, ['stopped', 'starting', 'failed'])) {
+                        $dbStatus = 'inactive';
+                    }
+
+                    if ($dbStatus !== $session['status']) {
+                        $stmt = $pdo->prepare("
+                            UPDATE whatsapp_sessions
+                            SET status = :status, updated_at = NOW()
+                            WHERE id = :id
+                        ");
+                        $stmt->execute(['status' => $dbStatus, 'id' => $sessionId]);
+
+                        app_create_realtime_update($session['user_id'], 'session_status', (string) $sessionId, [
+                            'session_id' => $sessionId,
+                            'status' => $dbStatus,
+                            'waha_status' => $wahaStatus
+                        ]);
+                    }
+
+                    return [
+                        'session_id' => $sessionId,
+                        'status' => $dbStatus,
+                        'waha_status' => $wahaStatus,
+                        'session_data' => $fallbackSession
+                    ];
+                } catch (Exception $fallbackException) {
+                    $errorMessage = $fallbackException->getMessage();
+                }
+            }
+        }
+
+        app_log('Failed to get session status: ' . $errorMessage, 'ERROR', [
             'session_id' => $sessionId
         ]);
-        $errorMessage = $e->getMessage();
+
         $status = 'error';
         if ($e->getCode() === 404 || stripos($errorMessage, 'not found') !== false) {
             $status = 'invalid';

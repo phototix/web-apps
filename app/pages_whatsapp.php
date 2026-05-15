@@ -58,8 +58,9 @@ function app_page_whatsapp_connect(): void {
                     try {
                         app_whatsapp_api_get(
                             "/api/sessions/{$sessionName}",
-                            null,
-                            (int) ($session['user_id'] ?? 0)
+                            $session['api_key'] ?: null,
+                            (int) ($session['user_id'] ?? 0),
+                            $session['endpoint_url'] ?? null
                         );
                     } catch (Exception $e) {
                         if ($e->getCode() === 404 || stripos($e->getMessage(), 'not found') !== false) {
@@ -168,7 +169,7 @@ function app_page_whatsapp_connect(): void {
                                                                 $statusClass = 'danger';
                                                             }
                                                         ?>
-                                                        <span class="badge bg-<?= $statusClass ?>">
+                                                        <span class="badge bg-<?= $statusClass ?> session-status-badge" data-session-id="<?= $session['id'] ?>">
                                                             <?= ucfirst($status) ?>
                                                         </span>
                                                     </div>
@@ -224,15 +225,19 @@ function app_page_whatsapp_connect(): void {
                                                         </div>
                                                     <?php endif; ?>
                                                     
-                                                       <div class="d-flex justify-content-between mt-3">
-                                                           <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
-                                                                   data-session-id="<?= $session['id'] ?>"
-                                                                   data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
-                                                               <i class="fas fa-trash me-1"></i> Delete
-                                                           </button>
-                                                           <?php if (in_array($session['status'], ['error', 'invalid'], true)): ?>
-                                                               <button type="button" class="btn btn-sm btn-outline-warning reset-session-btn"
-                                                                       data-session-id="<?= $session['id'] ?>"
+                                                        <div class="d-flex justify-content-between mt-3">
+                                                            <button type="button" class="btn btn-sm btn-danger delete-session-btn" 
+                                                                    data-session-id="<?= $session['id'] ?>"
+                                                                    data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
+                                                                <i class="fas fa-trash me-1"></i> Delete
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary refresh-session-status-btn"
+                                                                    data-session-id="<?= $session['id'] ?>">
+                                                                <i class="fas fa-sync-alt me-1"></i> Refresh
+                                                            </button>
+                                                            <?php if (in_array($session['status'], ['error', 'invalid'], true)): ?>
+                                                                <button type="button" class="btn btn-sm btn-outline-warning reset-session-btn"
+                                                                        data-session-id="<?= $session['id'] ?>"
                                                                        data-session-name="<?= htmlspecialchars($session['session_name']) ?>">
                                                                    <i class="fas fa-rotate me-1"></i> Reset
                                                                </button>
@@ -506,6 +511,62 @@ function app_page_whatsapp_connect(): void {
                      },
                      allowOutsideClick: () => !Swal.isLoading()
                  });
+             });
+         });
+
+         // Refresh session status
+         document.querySelectorAll('.refresh-session-status-btn').forEach(button => {
+             button.addEventListener('click', async function() {
+                 const sessionId = this.dataset.sessionId;
+                 const originalHtml = this.innerHTML;
+
+                 this.disabled = true;
+                 this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+
+                 try {
+                     const response = await fetch(`/api/whatsapp/sessions/${sessionId}/status`, {
+                         method: 'GET',
+                         headers: {'Content-Type': 'application/json'}
+                     });
+
+                     const result = await response.json();
+                     if (!result.success) {
+                         throw new Error(result.message || 'Failed to refresh session status');
+                     }
+
+                     const status = (result.data && result.data.status) ? String(result.data.status) : 'pending';
+                     const badge = document.querySelector(`.session-status-badge[data-session-id="${sessionId}"]`);
+                     if (badge) {
+                         badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                         badge.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-secondary');
+                         if (status === 'active') {
+                             badge.classList.add('bg-success');
+                         } else if (['pending', 'authenticating'].includes(status)) {
+                             badge.classList.add('bg-warning');
+                         } else if (['error', 'invalid'].includes(status)) {
+                             badge.classList.add('bg-danger');
+                         } else {
+                             badge.classList.add('bg-secondary');
+                         }
+                     }
+
+                     Swal.fire({
+                         icon: 'success',
+                         title: 'Status Updated',
+                         text: `Session status is now ${status}`,
+                         timer: 1500,
+                         showConfirmButton: false
+                     });
+                 } catch (error) {
+                     Swal.fire({
+                         icon: 'error',
+                         title: 'Refresh Failed',
+                         text: error.message || 'Unable to refresh session status'
+                     });
+                 } finally {
+                     this.disabled = false;
+                     this.innerHTML = originalHtml;
+                 }
              });
          });
          

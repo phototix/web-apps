@@ -15,7 +15,7 @@ function app_whatsapp_api_endpoint(?int $userId = null): string {
         return $defaultEndpoint;
     }
 
-    $effectiveUser = app_get_effective_user($user);
+    $effectiveUser = $userId !== null ? $user : app_get_effective_user($user);
     $settings = [];
     if (!empty($effectiveUser['settings'])) {
         $decodedSettings = json_decode($effectiveUser['settings'], true);
@@ -40,7 +40,7 @@ function app_whatsapp_api_key(?int $userId = null): string {
         return $defaultApiKey;
     }
 
-    $effectiveUser = app_get_effective_user($user);
+    $effectiveUser = $userId !== null ? $user : app_get_effective_user($user);
     $settings = [];
     if (!empty($effectiveUser['settings'])) {
         $decodedSettings = json_decode($effectiveUser['settings'], true);

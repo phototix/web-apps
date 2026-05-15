@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 // WhatsApp API Client
 
-function app_whatsapp_api_call(string $method, string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null): array {
-    $baseUrl = app_whatsapp_api_endpoint($userId);
+function app_whatsapp_api_call(string $method, string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): array {
+    $baseUrl = $endpointUrl ?: app_whatsapp_api_endpoint($userId);
     if ($apiKey === null) {
         $apiKey = app_whatsapp_api_key($userId);
     }
@@ -51,12 +51,12 @@ function app_whatsapp_api_call(string $method, string $endpoint, array $data = [
     return $result;
 }
 
-function app_whatsapp_api_get(string $endpoint, ?string $apiKey = null, ?int $userId = null): array {
-    return app_whatsapp_api_call('GET', $endpoint, [], $apiKey, $userId);
+function app_whatsapp_api_get(string $endpoint, ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): array {
+    return app_whatsapp_api_call('GET', $endpoint, [], $apiKey, $userId, $endpointUrl);
 }
 
-function app_whatsapp_api_get_binary(string $endpoint, ?string $apiKey = null, ?int $userId = null): string {
-    $baseUrl = app_whatsapp_api_endpoint($userId);
+function app_whatsapp_api_get_binary(string $endpoint, ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): string {
+    $baseUrl = $endpointUrl ?: app_whatsapp_api_endpoint($userId);
     if ($apiKey === null) {
         $apiKey = app_whatsapp_api_key($userId);
     }
@@ -98,8 +98,8 @@ function app_whatsapp_api_get_binary(string $endpoint, ?string $apiKey = null, ?
     return $response;
 }
 
-function app_whatsapp_api_get_binary_with_headers(string $endpoint, array $extraHeaders = [], ?string $apiKey = null, ?int $userId = null): string {
-    $baseUrl = app_whatsapp_api_endpoint($userId);
+function app_whatsapp_api_get_binary_with_headers(string $endpoint, array $extraHeaders = [], ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): string {
+    $baseUrl = $endpointUrl ?: app_whatsapp_api_endpoint($userId);
     if ($apiKey === null) {
         $apiKey = app_whatsapp_api_key($userId);
     }
@@ -140,16 +140,16 @@ function app_whatsapp_api_get_binary_with_headers(string $endpoint, array $extra
     return $response;
 }
 
-function app_whatsapp_api_post(string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null): array {
-    return app_whatsapp_api_call('POST', $endpoint, $data, $apiKey, $userId);
+function app_whatsapp_api_post(string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): array {
+    return app_whatsapp_api_call('POST', $endpoint, $data, $apiKey, $userId, $endpointUrl);
 }
 
-function app_whatsapp_api_put(string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null): array {
-    return app_whatsapp_api_call('PUT', $endpoint, $data, $apiKey, $userId);
+function app_whatsapp_api_put(string $endpoint, array $data = [], ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): array {
+    return app_whatsapp_api_call('PUT', $endpoint, $data, $apiKey, $userId, $endpointUrl);
 }
 
-function app_whatsapp_api_delete(string $endpoint, ?string $apiKey = null, ?int $userId = null): array {
-    return app_whatsapp_api_call('DELETE', $endpoint, [], $apiKey, $userId);
+function app_whatsapp_api_delete(string $endpoint, ?string $apiKey = null, ?int $userId = null, ?string $endpointUrl = null): array {
+    return app_whatsapp_api_call('DELETE', $endpoint, [], $apiKey, $userId, $endpointUrl);
 }
 
 function app_whatsapp_test_connection(): bool {

@@ -39,8 +39,9 @@ function app_whatsapp_send_message(int $sessionId, string $groupId, string $mess
         $response = app_whatsapp_api_post(
             "/api{$mediaEndpoint}",
             $payload,
-            null,
-            (int) ($session['user_id'] ?? 0)
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         // Store sent message
@@ -347,7 +348,7 @@ function app_whatsapp_clear_group_last_message(int $sessionId, string $groupId):
     ]);
 }
 
-function app_whatsapp_delete_remote_message(string $sessionName, string $chatId, string $messageId, ?int $userId = null): void {
+function app_whatsapp_delete_remote_message(string $sessionName, string $chatId, string $messageId, ?int $userId = null, ?string $endpointUrl = null, ?string $apiKey = null): void {
     $endpoints = [
         "/api/{$sessionName}/messages/{$messageId}",
         "/api/{$sessionName}/chats/{$chatId}/messages/{$messageId}"
@@ -356,7 +357,7 @@ function app_whatsapp_delete_remote_message(string $sessionName, string $chatId,
     $lastException = null;
     foreach ($endpoints as $endpoint) {
         try {
-            app_whatsapp_api_delete($endpoint, null, $userId);
+            app_whatsapp_api_delete($endpoint, $apiKey, $userId, $endpointUrl);
             return;
         } catch (Exception $e) {
             $lastException = $e;
@@ -384,8 +385,9 @@ function app_whatsapp_sync_group_messages(int $sessionId, string $groupId): arra
         // Note: WAHA API might have rate limits or pagination
         $messages = app_whatsapp_api_get(
             "/api/{$session['session_name']}/chats/{$group['group_id']}/messages?limit=100",
-            null,
-            (int) ($session['user_id'] ?? 0)
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
         
         $synced = 0;
@@ -868,7 +870,13 @@ function app_whatsapp_send_category_vote_poll(int $sessionId, string $chatId, st
         ]
     ];
 
-    $response = app_whatsapp_api_post('/api/sendPoll', $payload, null, (int) ($session['user_id'] ?? 0));
+    $response = app_whatsapp_api_post(
+        '/api/sendPoll',
+        $payload,
+        $session['api_key'] ?: null,
+        (int) ($session['user_id'] ?? 0),
+        $session['endpoint_url'] ?? null
+    );
     $pollMessageId = $response['messageId'] ?? $response['id'] ?? $response['message_id'] ?? null;
 
     if (is_array($pollMessageId)) {
@@ -934,8 +942,9 @@ function app_whatsapp_send_category_assignment_notification(int $sessionId, stri
                 'session' => $session['session_name'],
                 'reply_to' => $messageId
             ],
-            null,
-            (int) ($session['user_id'] ?? 0)
+            $session['api_key'] ?: null,
+            (int) ($session['user_id'] ?? 0),
+            $session['endpoint_url'] ?? null
         );
     } catch (Exception $e) {
         app_log('Failed to send category assignment notice: ' . $e->getMessage(), 'WARNING', [
